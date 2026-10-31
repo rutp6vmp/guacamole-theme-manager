@@ -1,5 +1,7 @@
 # 安裝、切換及故障還原
 
+新 VM 尚未有 Guacamole 時，請先依 [新 VM 從零安裝教學](NEW_VM_INSTALL.zh-TW.txt) 建立 Docker、Guacamole 與資料庫。以下步驟用於已存在的部署；從 Git 下載後先執行 `python3 scripts/build.py`，才會有下方使用的主題 ZIP。
+
 ## 設定部署位置
 
 先確認 Python 3.10+、Docker Compose v2 及正式服務正常。避免以會把環境變數完整印出的命令收集診斷資料；Compose 與容器 inspect 常含資料庫密碼。

@@ -1573,12 +1573,12 @@ PAM 規劃驗收與進度管理表
 規劃節：26
 驗收要求：新 clone/預建/校驗簽章/設定遷移/無客戶資料與免編譯
 狀態：部分通過
-核對日期：2026-10-31
-最後處理日期：2026-10-31
-最近驗證日期：2026-10-31
+核對日期：2026-11-01
+最後處理日期：2026-11-01
+最近驗證日期：2026-11-01
 範圍內完成日期：—
-證據：scripts/build.py; .github/workflows/ci.yml; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
-缺口／下一步：完整套件納入 0.4.0 原型/entry/bootstrap/workflow/手冊，來源 72 項 Python 通過；未推遠端，正式 PAM 發行/簽章/遷移未交付
+證據：docs/NEW_VM_INSTALL.zh-TW.txt; docs/GIT_PUBLICATION.zh-TW.txt; scripts/build.py; .github/workflows/ci.yml; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：已推 Git 來源與新 VM 分步教學，教學 Docker 段隔離通過；Ubuntu apt 安裝未在新 VM 實跑，完整核心繁中／正式 PAM 發行／簽章／設定遷移仍未交付
 
 [D01]
 規劃節：27
@@ -1894,6 +1894,17 @@ PAM 規劃驗收與進度管理表
   CI 證據：https://github.com/rutp6vmp/guacamole-theme-manager/actions/runs/41229857229
   已在 docs/GIT_PUBLICATION.zh-TW.txt 記錄來源範圍、下載建置方式與缺口，未宣稱完整系統可一鍵複製。
   本批不變更正式服務或 152 項 PAM 功能狀態，不發布 Release 或 tag。
+
+2026-11-01｜依使用者要求新增 GitHub 新 VM 安裝教學｜README 首頁新增快速開始、來源下載建置指令與新 VM 教學入口。
+  新增 docs/NEW_VM_INSTALL.zh-TW.txt：Ubuntu Docker 官方套件、全新 Guacamole 1.6.0/PostgreSQL 16、
+  私有隨機 .env、官方 SQL 初始化、CLI／主題／JDBC 中文、SSH 本機轉送及首次登入改密碼。
+  明列 install.sh 僅裝 CLI、完整核心繁中另供、錄影／MFA／PAM 不自動啟用；實際設定仍不隨 Git 提供。
+  9 個 Bash 區塊語法、內嵌 Python 及既有目錄拒絕覆寫檢查通過。
+  從教學擷取實際 Compose，在新建隨機 localhost Docker 專案驗證初始化、初始登入／登出、
+  私有 prefix 的 CLI 安裝、configure／doctor／主題匯入與啟用、marker／GTM／JDBC 翻譯，全部通過。
+  測試中 DB／guacd 身分、私有 .env／語系 JAR 保留，結束只清理自建專案與 Volume，正式服務未變更。
+  Ubuntu apt／systemd 安裝僅官方文件核對與語法檢查，未冒稱已在全新 OS VM 實跑。
+  L 維持部分通過並更新日期／證據，152 項狀態統計不變；本批交付分步教學，不宣稱一鍵完整 PAM 部署。
 
 五、單次人工驗收紀錄（範本，填寫前不算通過）
 驗收項目 ID：

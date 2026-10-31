@@ -1,0 +1,233 @@
+新 VM 從零安裝教學（Ubuntu／Docker Compose）
+更新日期：2026-11-01（Asia/Taipei）
+適用：全新的 Ubuntu 22.04／24.04 VM、Bash、可使用 sudo、可連網下載套件及 Docker 映像。
+版本：Guacamole 1.6.0、PostgreSQL 16、主題 1.1.0、CLI 1.2.0。
+
+這是分步驟教學，沒有宣稱現有 install.sh 能一鍵部署整套 Guacamole。
+實際密碼與 Compose 都在新 VM 產生，不包含原系統帳號、設備、內網位址或其他設定。
+以下命令用於新 VM；已有 Guacamole 的主機請改依 docs/INSTALL.md 操作。
+
+1. 安裝 Docker、Compose 與基本工具
+
+以下命令在新 VM 的 Bash 終端執行。若 Docker 已裝好，先確認 sudo docker compose version 可用，
+再從第 2 步開始；不要在已有服務的主機重裝 Docker。
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git python3
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+. /etc/os-release
+printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' "$(dpkg --print-architecture)" "$VERSION_CODENAME" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo docker compose version
+```
+
+本教學不將登入使用者加入 docker 群組，後續 Docker 命令明確使用 sudo。
+
+2. 下載專案、建置主題及安裝 CLI
+
+在一般使用者有寫入權限的工作目錄執行。若 guacamole-theme-manager 已存在，先選擇其他目錄，
+不要覆蓋已有修改。下列 cd 完成後，後續專案命令都在此目錄執行。
+
+```bash
+git clone https://github.com/rutp6vmp/guacamole-theme-manager.git
+cd guacamole-theme-manager
+python3 scripts/build.py
+(cd dist && sha256sum -c SHA256SUMS)
+sudo sh scripts/install.sh
+```
+
+Git 原始碼不含預建 dist 產物；build.py 只需 Python，不需要 Java／Maven／Node。
+install.sh 只安裝主題管理 CLI。若提示已存在不同版本，請閱讀 docs/INSTALL.md 的升級流程，
+不要刪除已存在的程式或管理狀態。
+
+3. 建立此新 VM 專用的部署目錄與隨機資料庫密碼
+
+此步驟遇到已存在的 /opt/guacamole 會直接停止，避免覆寫現有部署。
+成功後密碼只寫入新 VM 的 root 專用 .env，不會印出，也不要加入 Git。
+
+```bash
+sudo python3 - <<'PY'
+from pathlib import Path
+import os
+import secrets
+
+root = Path('/opt/guacamole')
+if root.exists() or root.is_symlink():
+    raise SystemExit('STOP: /opt/guacamole already exists; use the existing-installation guide.')
+root.mkdir(mode=0o755)
+(root / 'init').mkdir(mode=0o755)
+(root / 'custom/extensions').mkdir(mode=0o755, parents=True)
+fd = os.open(root / '.env', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'w') as stream:
+    stream.write('DB_PASSWORD=' + secrets.token_hex(32) + '\n')
+print('Created a new deployment directory and private random database password.')
+PY
+```
+
+建立通用 Compose 範本。這是新 VM 的範例設定，不是原服務的實際設定。
+Web 僅綁定 localhost；資料庫與 guacd 不對主機外部開放連接埠。
+
+```bash
+sudo tee /opt/guacamole/compose.yaml > /dev/null <<'YAML'
+name: guac-new-vm
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the private .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "guacamole_user", "-d", "guacamole_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  guacd:
+    image: guacamole/guacd:1.6.0
+    restart: unless-stopped
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./custom/extensions:/etc/guacamole/extensions:ro
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_ENABLED: "true"
+      POSTGRESQL_HOSTNAME: postgres
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole_user
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the private .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      guacd:
+        condition: service_started
+volumes:
+  postgres_data:
+YAML
+```
+
+產生官方資料庫初始化 SQL，只有全新空資料庫第一次啟動時會執行。
+這段請用 Bash，pipefail 可確保產生 SQL 失敗時不繼續啟動。
+
+```bash
+set -euo pipefail
+sudo docker run --rm --entrypoint /opt/guacamole/bin/initdb.sh guacamole/guacamole:1.6.0 --postgresql | sudo tee /opt/guacamole/init/001-initdb.sql > /dev/null
+sudo test -s /opt/guacamole/init/001-initdb.sql
+```
+
+請勿把這份 SQL 重複匯入已有資料的資料庫，也不要以刪除 Volume 的方式處理初始化問題。
+
+4. 載入中文補充、啟動 Guacamole 並套用主題
+
+仍在第 2 步的專案目錄執行：
+
+```bash
+sudo install -m 0644 dist/guacamole-jdbc-zh-tw-1.0.0.jar /opt/guacamole/custom/extensions/
+sudo docker compose -f /opt/guacamole/compose.yaml -p guac-new-vm up -d
+```
+
+啟動後等待 Web 可用；下列檢查最多等候約三分鐘，不附帶任何登入資料。
+
+```bash
+python3 - <<'PY'
+import time
+import urllib.request
+
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+for attempt in range(90):
+    try:
+        with opener.open('http://127.0.0.1:8080/guacamole/', timeout=2) as response:
+            if response.status == 200 and b'ng-app="index"' in response.read():
+                print('Guacamole Web is ready.')
+                break
+    except OSError:
+        pass
+    time.sleep(2)
+else:
+    raise SystemExit('Web is not ready; check this new deployment before continuing.')
+PY
+```
+
+確認原生服務可用後，配置管理工具、匯入主題，再以互動確認啟用：
+
+```bash
+sudo guac-theme configure \
+  --extensions-dir /opt/guacamole/custom/extensions \
+  --compose-file /opt/guacamole/compose.yaml \
+  --project-name guac-new-vm \
+  --service guacamole \
+  --web-url http://127.0.0.1:8080/guacamole/ \
+  --timeout 120
+sudo guac-theme doctor
+sudo guac-theme import dist/guac-theme-librenms-1.1.0.zip
+sudo guac-theme import dist/guac-theme-dark-1.1.0.zip
+sudo guac-theme switch librenms
+sudo guac-theme doctor
+```
+
+switch 會要求輸入 TRUST 確認信任主題程式碼，再輸入 YES 確認只重建 Web。
+新主機沒有其他遠端使用者時再執行；不要把這個步驟用在他人正在操作的正式服務。
+一般安裝不需要執行 tests，也不需要安裝 Java／Node／Playwright。
+
+本專案提供主題與 JDBC 的繁中補充，不包含完整核心 guacamole-zh-tw.jar。
+若需要主程式所有頁面也為繁中，須另取得可信、相容 1.6.0 的核心繁中套件，
+放入同一 extensions 來源目錄後重建 Web。沒有核心繁中套件時仍可能看到英文。
+
+5. 從自己的電腦登入與新增設備
+
+Web 預設只聽新 VM 的 localhost，不能直接用 VM_IP:8080 存取。
+在您自己的電腦開另一個終端，替換 VM_USER、VM_IP 後執行：
+
+```bash
+ssh -N -L 18080:127.0.0.1:8080 VM_USER@VM_IP
+```
+
+保持 SSH 視窗開著，瀏覽器開啟 http://127.0.0.1:18080/guacamole/ 。
+官方新資料庫的初始帳號／密碼皆為 guacadmin；第一次登入後立即在使用者設定更換密碼。
+這是官方初始化的初始值，不是原系統的管理員密碼。
+系統不會自動帶入原部署的帳號或設備；需要依自己的環境新增。
+外部正式入口另依自己的網域配置 HTTPS、代理與接入政策；此教學不直接公開預設登入入口。
+
+RDP：填目標 Windows 的可達位址與 RDP 埠、Windows 帳號／密碼，安全性模式可選「任意」；
+若使用本機帳號，需要時在「網域」填該 Windows 電腦名稱。
+SSH：填目標 Linux 的可達位址、SSH 埠與該主機的登入資料。
+「Guacamole 代理伺服器參數（guacd）」的主機與連接埠通常留白，沿用系統設定，不填 0。
+不要把 Guacamole 網頁登入密碼誤當成目標 Windows／Linux 的登入密碼。
+
+6. 驗收與日後管理
+
+完成後核對：doctor 通過、首頁主題可見、新密碼登入成功、自己的 RDP／SSH 實際可連。
+錄影、NAS 儲存、MFA 與 PAM 試驗原型不會因這份教學自動啟用。
+資料庫在新專案的 postgres_data Volume；另做資料庫與私有 .env 的備份，不加入 Git。
+原始碼更新先閱讀版本／升級說明；不要直接覆寫整份 Compose 或既有管理狀態。
+故障時先核對 sudo docker compose -f /opt/guacamole/compose.yaml -p guac-new-vm ps，
+在管理員終端私下檢查日誌，不要公開包含憑證的 inspect 或完整 Compose 展開結果。
+
+7. 本教學的驗證紀錄
+
+2026-11-01：9 個 Bash 區塊語法檢查通過，內嵌 Python 可編譯。
+從本文件擷取原樣 Compose 範本，在隨機 project、私有暫存目錄及 localhost 隨機埠的
+隔離 Docker 專案執行；只替換 project name、部署根目錄與測試埠。
+驗證全新資料庫官方 SQL 初始化、初始管理員登入及登出、私有 CLI prefix 安裝、
+configure／doctor、兩套主題匯入、LibreNMS 啟用、主題 marker 與 GTM／JDBC 中文載入。
+Web 重建前後，該測試專案資料庫／guacd 身分、私有 .env 與中文補充 JAR 保持不變。
+既有目錄拒絕覆寫檢查通過；結束只刪除自己建立的隨機專案與 Volume。
+此驗證使用已安裝 Docker 的主機，沒有在全新 Ubuntu VM 實際執行第 1 步的 apt／systemd 安裝，
+也未代替使用者驗收自己的遠端目標、HTTPS、核心繁中、錄影或完整 PAM。
+
+參考來源（查閱於 2026-11-01）：
+https://docs.docker.com/engine/install/ubuntu/
+https://guacamole.apache.org/doc/1.6.0/gug/guacamole-docker.html
+https://guacamole.apache.org/doc/1.6.0/gug/postgresql-auth.html

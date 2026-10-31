@@ -4,6 +4,24 @@ Installable dashboard themes and a safe CLI for **Apache Guacamole 1.6.0**. Uses
 
 [繁體中文](README.md) · [Installation / recovery](docs/INSTALL.md) · [Theme format](docs/THEMES.md) · [Architecture / upstream references](docs/ARCHITECTURE.md) · [Tests](docs/TESTING.md) · [Release process](docs/RELEASING.md)
 
+## Start here
+
+For a fresh Ubuntu VM, follow the [step-by-step Docker Compose guide (Traditional Chinese)](docs/NEW_VM_INSTALL.zh-TW.txt): install Docker, initialize a new Guacamole 1.6.0/PostgreSQL deployment, build the themes and enable the CLI. The existing `install.sh` installs only the theme manager.
+
+For an existing Guacamole 1.6.0 deployment:
+
+```bash
+git clone https://github.com/rutp6vmp/guacamole-theme-manager.git
+cd guacamole-theme-manager
+python3 scripts/build.py
+(cd dist && sha256sum -c SHA256SUMS)
+sudo sh scripts/install.sh
+```
+
+Then follow [installation and recovery](docs/INSTALL.md). Git source downloads do not contain prebuilt `dist` artifacts or your deployment credentials/data. The full core Traditional Chinese extension, recording and MFA require separate setup.
+
+## Development and validation
+
 [1.1.0 settings coverage and validation](docs/SETTINGS-1.1.md)
 
 [PAM system plan (Traditional Chinese TXT)](docs/PAM_SYSTEM_PLAN.zh-TW.txt) · [Deployment protection and pilot runbook (Traditional Chinese TXT)](docs/PAM_PILOT_RUNBOOK.zh-TW.txt)

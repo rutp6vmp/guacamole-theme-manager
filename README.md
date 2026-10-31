@@ -4,6 +4,24 @@
 
 [English](README.en.md) · [安裝與還原](docs/INSTALL.md) · [主題規格](docs/THEMES.md) · [相容性與設計依據](docs/ARCHITECTURE.md) · [測試與人工驗收](docs/TESTING.md) · [Release 發布](docs/RELEASING.md)
 
+## 快速開始：新 VM 安裝
+
+**第一次安裝請照 [新 VM 分步驟教學（Ubuntu／Docker Compose）](docs/NEW_VM_INSTALL.zh-TW.txt)**，依序完成 Docker、Guacamole 1.6.0／PostgreSQL、新 VM 專用密碼、中文補充、主題與首次登入。這是完整步驟教學，現有 `install.sh` 只安裝管理工具。
+
+已經有可運作的 Guacamole 1.6.0 時，可先下載並準備這個專案：
+
+```bash
+git clone https://github.com/rutp6vmp/guacamole-theme-manager.git
+cd guacamole-theme-manager
+python3 scripts/build.py
+(cd dist && sha256sum -c SHA256SUMS)
+sudo sh scripts/install.sh
+```
+
+再依 [既有部署安裝與還原](docs/INSTALL.md) 配置實際部署位置、匯入及啟用主題。Git 原始碼不含預建 `dist`；實際帳密與設備不會從原系統帶入。完整核心繁中套件需另行提供，錄影與 MFA 也需另外配置。
+
+## 開發進度與驗收
+
 [1.1.0 系統設定頁面與驗證紀錄](docs/SETTINGS-1.1.md)
 
 [PAM 原創系統規劃與代理實作指南（TXT）](docs/PAM_SYSTEM_PLAN.zh-TW.txt) · [首批實作與試點操作（TXT）](docs/PAM_PILOT_RUNBOOK.zh-TW.txt)
