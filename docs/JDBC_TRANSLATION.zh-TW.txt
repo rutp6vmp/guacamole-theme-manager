@@ -1,0 +1,71 @@
+Guacamole JDBC 管理頁繁體中文補充套件
+處理日期：2026-11-01（Asia/Taipei）
+適用：Apache Guacamole 1.6.0；語系 zh_TW；套件 1.0.0。
+
+一、問題與實作
+連線編輯頁 /#/manage/postgresql/connections/ 的主程式文字已是繁體中文，
+但既有 guacamole-zh-tw.jar 缺少 JDBC 模組語系，造成額外設定區塊回退成英文。
+新增原創繁中補充，不修改 WAR、資料庫、帳號、連線設定或既有翻譯 JAR。
+
+Concurrency Limits → 同時連線限制
+Maximum number of connections → 同時連線數上限
+Maximum number of connections per user → 每位使用者的同時連線數上限
+Load Balancing → 負載平衡
+Connection weight → 連線權重
+Use for failover only → 僅用於故障轉移
+
+另補 guacd 代理伺服器參數、加密方式、負載平衡群組的限制與工作階段親和性、
+帳號有效期間、每日登入時間、時區、密碼到期及密碼政策錯誤等文字。
+與 1.6.0 JDBC 模組英文定義逐鍵核對，共 49 個葉節點全數覆蓋。
+保留錯誤訊息的具名參數；中文數量詞不需套用英文複數規則。
+
+二、來源與打包
+themes/jdbc-zh-tw/guac-manifest.json
+themes/jdbc-zh-tw/zh_TW.json
+scripts/build.py 產生 dist/guacamole-jdbc-zh-tw-1.0.0.jar。
+套件只含 manifest 與 translations/zh_TW.json，無 Java、JS、CSS 或認證邏輯。
+固定 namespace guactheme-jdbc-zh-tw，避免與主題 gtm-* 的原生還原檢查混淆。
+獨立於 LibreNMS / Dark / 原生外觀，可與原有完整繁中套件一同載入。
+完整專案 ZIP 與 SHA256SUMS 亦包含這個預建 JAR，git 拉取後可重新建置。
+
+三、其他部署安裝
+先執行 python3 scripts/build.py，再核對 dist/SHA256SUMS。
+將這個 JAR 放入自己部署的唯讀 extensions 掛載所對應的主機來源目錄。
+勿刪除原有 guacamole-zh-tw.jar；本套件只補資料庫模組文字，並非完整主程式語系。
+對原有 Compose 專案，只重啟／重建 Web 服務後載入；會中斷現有 Web 工作階段。
+使用實際服務名稱、完整原有 Compose 清單及 project name，不另建正式專案。
+範例（此主機既有部署）：
+  sudo install -m 0644 dist/guacamole-jdbc-zh-tw-1.0.0.jar /opt/guacamole/custom/extensions/
+  sudo docker compose -f /opt/guacamole/compose.yaml -p guacamole restart guacamole
+若啟用了 JAR 白名單／安全鎖定，應依該部署流程採納這個獨立語系套件。
+還原：只移除此補充 JAR，再重啟同一 Web；保留其他擴充。
+
+四、使用者操作
+瀏覽器語言選「繁體中文」，按 Ctrl+Shift+R 重新載入，再進入連線設定。
+不會強制改變偏好為英文的使用者，也不改寫連線數上限、權重等設定值。
+
+五、驗證與部署紀錄
+2026-11-01：來源 72 項 Python、6 項 Node 模型與 JS 語法檢查通過。
+JDBC 1.6.0 英文語系的 49 個葉節點逐鍵比對，補充語系全數覆蓋。
+隔離 Docker 設定頁專項 78 項通過，含實際連線／群組／帳號中文標籤及原生 CRUD。
+首次完整整合測試曾在既有使用者群組編輯頁載入逾時；設定頁專項重跑通過。
+完整 Docker 整合複驗通過：首頁 28 項、LibreNMS 設定頁 78 項、Dark 設定頁 78 項，
+共 184 項瀏覽器檢查；另完成 switch/reset/restore/doctor、故障注入及 recover。
+PostgreSQL／guacd 容器識別、原有翻譯與新增補充套件的摘要全程保持一致。
+測試環境為新建隨機專案、localhost 隨機連接埠、合成帳號與 tmpfs 資料庫，結束已自動清理。
+命令（需可用的 Docker／Node／Playwright）：
+  python3 tests/docker_acceptance.py
+  GTM_TEST_SUITE=settings python3 tests/docker_acceptance.py
+完整發行包解壓後語系來源／預建 JAR、152 項 ledger 與內外校驗均通過。
+
+已套用本機既有 /opt/guacamole 部署，只有 Web 容器重建。
+載入後 translations/zh_TW.json 內的 49 個 JDBC 項目與來源完全一致。
+原有 PostgreSQL／guacd 容器識別、既有 JAR、Compose／.env 的摘要及全部掛載設定不變。
+未使用正式登入憑證，未查詢／修改正式資料庫中的帳號、連線或權限。
+變更前後非機密摘要保存於 root 專用 /var/lib/guac-theme/language-backups/，不隨套件散布。
+JAR SHA-256：fe75948d3356278f0cbacb94e9fd3eb2a1859a6e1d44e117766c24df5a1a9909。
+
+使用本機實際 Web 的瀏覽器 Angular 語系服務驗證截圖六項中文、
+密碼錯誤訊息參數插值及切回英文；未以管理員登入或讀取設備資訊。
+使用者提供的外部 Guacamole 網址從本機無法連通（實際網址不隨程式碼公開），
+因此本次尚未獨立驗證外部 NAT／代理是否指向同一部署。需要由使用者在原入口強制重整確認。

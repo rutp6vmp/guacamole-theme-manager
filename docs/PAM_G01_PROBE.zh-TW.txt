@@ -1,0 +1,102 @@
+G01 最小伺服器連線攔截探針
+日期：2026-10-30（Asia/Taipei）
+版本：probe 0.1.0；Guacamole 1.6.0；不改主題 1.1.0 或 CLI 1.2.0。
+性質：隔離試驗，拒絕連線，不是正式 PAM adapter、審批或 JIT 引擎。
+進度／驗證結果以 PAM_ACCEPTANCE.zh-TW.txt 的 G01 項與事件紀錄為準。
+本文件只描述原拒絕型 probe；後續真實 SSH、登入資格綁定與期限控制另見
+PAM_SESSION_PROBE.zh-TW.txt。以下「未測」界線針對原拒絕型探針，不覆蓋後續實驗。
+本機本輪結果：21 項 server 檢查＋5 項 Chromium 檢查通過。
+產物 SHA-256：dc2c5f1e2ef5c6a8dcc3cf8dbd5dd054f5b0669ac501ac5f1460de4faa2baa0f。
+手動 GitHub G01 workflow 已提供但尚未在遠端執行。
+
+一、這一批要證明的接入點
+
+透過公開 AuthenticationProvider.decorate/redecorate 包裝既有 JDBC UserContext。
+從後端 AuthenticatedUser 的 provider/identifier，及被包裝 context 的 provider/self
+取得身份，計算一次性測試的識別摘要；不解析 Credentials、MFA、token 或 parameter tokens。
+摘要僅作合成身份測試的對照，不是保密身份主鍵、admission、登入 session ID 或授權證明。
+不依瀏覽器送入的 username/user_id/mfa 決定允許。
+
+Connection 與 ConnectionGroup 的新版及 deprecated connect 均以固定 SecurityException
+拒絕，不呼叫原始 connect，也不自行建立 socket。Directory.get/getAll/tryAtomically
+的回傳物件維持包裝；privileged context 同樣包裝，避免明顯的解包路徑。
+ActiveConnection 保留有權限的中繼資料，封鎖 connect、sharing 與直接 tunnel 存取。
+這些程式路徑存在，不代表所有 provider/共享情境已端到端通過；需看下面限制。
+
+初稿過早拒絕 ActiveConnection 目錄讀取，造成原生首頁導向失敗；已改為保留授權
+metadata，只封鎖有連線／共享能力的操作。這個失敗也記在驗收事件，未列為通過。
+瀏覽器錯誤碼使用官方 Guacamole.Status.Code.CLIENT_FORBIDDEN，不假設 magic number。
+
+二、原創程式與相容依據
+
+原始碼：
+modules/guacamole-adapter-1.6/probe/src/main/java/org/guactheme/pam/probe/GateProbeProvider.java
+manifest：
+modules/guacamole-adapter-1.6/probe/src/main/resources/guac-manifest.json
+
+固定 guacamoleVersion=1.6.0；namespace=pam-gate-probe，與靜態 gtm-* 主題分開。
+只使用 Guacamole 公開 API 與 Java 標準函式庫，沒有額外後端、資料庫或 cryptography。
+建置 classpath 使用官方 WAR 的 provided API，不把 Guacamole/JDBC/Servlet 等核心類別
+或第三方依賴打包進探針；JAR 只含自己 namespace 的 classes、manifest 與授權文件。
+Java class target 為 8（major 52）；本機以 JRE 21/ECJ 編譯，已在本輪官方容器執行。
+本機工具鏈：JRE 21、ECJ 3.26.0（Tomcat 9.0.123 隨附）；官方 1.6.0 容器已實際載入。
+build-info.json 記錄 ECJ artifact 摘要或 javac release 與 WAR 摘要；不同工具鏈可能產出不同 bytes。
+
+核對來源：apache/guacamole-client tag 1.6.0，
+commit 0537c89cd783681b986ff8f8c4e0b97ec6873371。
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/AuthenticationProvider.java
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/DelegatingUserContext.java
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/DelegatingDirectory.java
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/Connectable.java
+guacamole/src/main/java/org/apache/guacamole/tunnel/TunnelRequestType.java
+guacamole/src/main/java/org/apache/guacamole/tunnel/TunnelRequestService.java
+guacamole-common/src/main/java/org/apache/guacamole/GuacamoleSecurityException.java
+guacamole-common-js/src/main/webapp/modules/Status.js
+HTTP/WS 都經 TunnelRequestService.createTunnel → type.getConnectable(context,id)
+→ connectable.connect；例外在該 connect 返回 guacd tunnel 之前發出。
+WebSocket 建立 tunnel 前失敗時以 close reason 傳數字狀態，不保證傳完整錯誤文字；
+browser 驗證官方 CLIENT_FORBIDDEN，server 日誌摘要與 guacd client 數量共同核對。
+
+官方說明：
+https://guacamole.apache.org/doc/1.6.0/gug/guacamole-ext.html
+https://guacamole.apache.org/doc/1.6.0/gug/custom-auth.html
+
+三、可攜建置與隔離測試
+
+使用 JDK 9+ javac（產出 Java 8 class）：
+  python3 scripts/build_pam_probe.py --war /path/to/guacamole-1.6.0.war
+
+或使用已準備的 JRE + ECJ：
+  python3 scripts/build_pam_probe.py --war /path/to/guacamole-1.6.0.war \
+    --java /path/to/java --ecj /path/to/ecj.jar
+
+所有路徑為範例，需替換；不依賴目前使用者名稱、主機資料或固定容器。
+腳本不下載依賴、不安裝、不執行 Docker；需自行核對官方 WAR 來源與 checksum。
+預設產物 dist/poc/guacamole-pam-probe-0.1.0.jar、SHA256SUMS、build-info.json。
+build-info 記錄提供 API 的 WAR 摘要、class target 與產物摘要。
+正式主題套件不自動安裝或啟用這個探針；modules 原始碼可隨來源套件取得。
+
+需 Docker、Node、Playwright（與既有瀏覽器驗收相同）：
+  python3 tests/gate_acceptance.py --probe-jar dist/poc/guacamole-pam-probe-0.1.0.jar
+
+測試只建立自己的隨機 gtm-pam-test-* localhost fixture 與 tmpfs PostgreSQL。
+先以無探針的 SSH 設定連往隔離 guacd 內關閉的 loopback port，觀測 guacd 建立 client，
+作為確實到達 guacd 的正向對照；這不是成功 SSH 登入或目標協定驗收。
+之後只重建該測試 Web，安裝獨立 JAR，驗證原生 HTTP/WS/client URL 的拒絕；
+同時比對 guacd 沒有新增 client、JDBC 與 guacd 容器識別不變。
+瀏覽器憑證從 private stdin 傳遞，不經 CLI argv，不輸出 token、URL query、seed 或回應。
+不截圖、不保存 trace；結束清理自己的容器與暫存資料，無正式路徑參數。
+
+四、目前不能宣稱完成的項目
+
+1. 沒有穩定登入 session binding、一次 admission、MFA 證據、grant 或政策引擎。
+2. 只測單一 JDBC provider/單一 Web 節點，未證明 LDAP/SSO/多來源相同 ID。
+3. Active lookup 的未知 ID 由原生拒絕；沒有真正活動 tunnel 或分享憑證的 join 測試。
+4. Balancing group 在選設備前被拒絕，未驗證依實際選出資產作授權。
+5. 新的重連啟動與既有 tunnel 的 read/write/reuse 不同，後者仍須專門驗證。
+6. 沒有真實 RDP/SSH/VNC 目標登入、錄影、撤權或 G02 的期限/close 效果。
+7. 探針只驗證擴充存在時的攔截；JAR 被移除時的外部入口 fail-closed 尚未實作。
+8. 這個 JAR 的功能是拒絕，不可安裝到正式 extension 目錄，也不提供繞過開關。
+
+後續按 ledger 的 G01-03/G01-04 與 G02 補足真正活動/共享、admission 綁定及撤銷。
+隔離試驗的通過範圍不能直接升級成外包正式上線簽核。

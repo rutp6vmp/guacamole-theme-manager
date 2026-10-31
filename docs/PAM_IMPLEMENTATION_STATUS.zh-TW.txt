@@ -1,0 +1,165 @@
+PAM 實作狀態與交接紀錄
+日期：2026-10-30，Asia/Taipei。
+最近處理／驗證：2026-10-31，Asia/Taipei；初始日期保留供追溯。
+本批：CLI 1.2.0，沿用未修改的主題 1.1.0，Guacamole 1.6.0。
+對照：PAM_SYSTEM_PLAN.zh-TW.txt、PAM_PILOT_RUNBOOK.zh-TW.txt。
+最新逐項進度與處理日期：PAM_ACCEPTANCE.zh-TW.txt（152 項）。
+歷史續作：G01 probe 0.1.0；相容映射與限制見 PAM_G01_PROBE.zh-TW.txt。
+歷史續作：獨立 session probe 0.1.0；真實 SSH/context-bound intent 與斷線量測見
+PAM_SESSION_PROBE.zh-TW.txt，57 項實測通過；仍是 P00 技術驗證，未交付正式 PAM 業務流程。
+2026-10-31：session probe 0.2.0，新增有效舊共享憑證、既有 HTTP/WS、父子 revoke
+與政策失效驗證 53 項通過，詳見 PAM_SHARING_PROBE.zh-TW.txt。
+前批來源：session probe 0.3.0，重啟/持久化/儲存故障 51 項通過，
+詳見 PAM_RESTART_PROBE.zh-TW.txt；以下舊版本的 hash 與結果保留供追溯。
+前批續作：同版 0.3.0 原生依賴失聯 32 項通過，詳見 PAM_OUTAGE_PROBE.zh-TW.txt。
+該批新增測試與手冊，後端/JAR 未改；65 項 Python 與 6 項前端模型通過。
+最新實作：session probe 0.4.0 新增 provider availability API，另加獨立 bootstrap/NGINX entry。
+入口與主題安全持續性擴充至 64 項通過，詳見 PAM_INGRESS_PROBE.zh-TW.txt。
+本輪 72 項 Python、6 項前端模型通過；下列舊版數字保留歷史批次範圍。
+
+一、需求與本批交付
+
+使用者已要求依規劃開始；另確認暫無 HTTPS／網域等試點資料。
+先完成 P00 的部署一致性切片與 P01 的 localhost TOTP 試驗，不自動變更正式登入。
+第一批未新增 PAM 業務資料庫或審批頁面；本輪接續新增獨立的測試用 Java provider。
+該 provider 僅供隔離 fixture 的啟動／期限等能力試驗，尚不是正式安全控制模組。
+
+已實作：
+1. bin/guac-theme 的 protect-deployment 命令。
+2. state/config.json 作為所有管理工具的共同部署清單，沿用同一把檔案鎖。
+3. 實際 Compose 檔案清單核對、必要安全 feature 驗證、獨立非主題 JAR 的 hash 保護。
+4. 在主題啟用時安全採納目前運行的 overlay，驗證後備份設定並原子更新。
+5. switch / reset / restore / recover 都保留目前的安全要求；不回復舊版安全設定。
+6. tests/test_deployment_guard.py 的負面／交易測試。
+7. tests/pam_acceptance.py：官方容器與新建 JDBC 資料庫的真實 TOTP / API 驗證。
+8. 可隨 Git clone 執行的測試、預建 CLI 套件、手動 GitHub acceptance workflow、TXT 手冊。
+9. 152 項 TXT 驗收 ledger、實際處理／驗證／範圍完成日期與來源指紋核對。
+10. G01 最小 Java probe：後端身份、decorate/redecorate、原生 HTTP/WS/URL 與群組拒絕。
+11. 獨立 session probe：每次登入的伺服器 context 綁定、原子一次消耗、lease/期限/撤銷。
+12. OpenSSH Linux 隔離目標與真實 Guacamole.Client 指令執行、join/share 正向對照及拒絕測試。
+13. 以原生 UUID/lease 追蹤分享子 tunnel；收緊、父關閉或撤銷會關閉已追蹤子連線。
+14. 測試政策檔的有效性、高水位、防回退與獨立監看；缺失/無效時拒新、關分享。
+15. 政策 checkpoint 私有目錄、明確初始化、檔案鎖、原子寫入及 fsync；重啟保留高水位。
+16. 原生 DB process pause 與 guacd SIGKILL/恢復、TTL 內失敗啟動消耗及真實 SSH 複驗。
+17. 獨立 bootstrap 的安全 JAR hash/缺檔檢查，私有 Web 前的逐請求 provider/policy availability gate。
+18. 缺模組但原生 Web 真可 SSH 的負面對照，以及主題 install/switch/reset/restore 後入口保護。
+
+二、目前各關卡狀態
+
+P00：進行中；規劃與共同部署 ADR 已存在，尚未完成所有 POC。
+G01：部分通過。已實作 deny-only Java probe，21 項 server 與 5 項 browser 檢查通過。
+已驗證 JDBC 後端身份與 decorate/redecorate、HTTP/WS/原生 URL、群組 connect 及新啟動。
+已增加 context-bound 一次性資格、真正 active join 與新增共享拒絕試驗；正式 grant/MFA
+證據與正式 grant 尚缺；已發有效共享憑證、既有 HTTP read/write 與父子關閉已補驗。
+實選資產、其他 provider/協定、完整故障矩陣/HA 仍待補；Web restart 另見 0.3.0 專項。
+G02：部分通過。真實 SSH owner close/native remove、期限與登入 context revoke 已量測，
+權限、不誤殺與背景程序語義已驗；已補正常重建/SIGKILL/儲存故障、DB pause 與 guacd 失聯。
+其他協定、IdP/控制服務/worker、完整網路分割、跨節點與正式 SLA 未驗。
+G03：部分測試。只覆蓋合成 JDBC 帳號的部分原生權限；不等於廠商組織隔離。
+G04：部分通過。本機工具一致性保護及 localhost entry/bootstrap 缺模組/政策封鎖已實測；
+正式 HTTPS/external profile、MFA/錄影全組合與跨節點尚缺，未開放正式外包入口。
+P01：前置試驗中。TOTP 與官方 recording-storage 模組使用隔離環境；正式未啟用。
+P02～P07：尚未展開各階段業務實作。本批的可攜測試與發行基礎不等於 P07 全部通過。
+
+三、測試證據
+
+2026-10-31 本輪新增：0.4.0 entry/bootstrap 專項 64 項通過，含實際主題操作後 fresh SSH。
+JAR：b464bb6cb6949262d93ca6ff989b993bc9b6a1e7e2db67a9eb9afc2b230d3bba。
+新增 bootstrap 校驗/拒絕 7 項，來源共 72 項 Python、6 項前端模型與語法檢查通過。
+readiness 僅證明單 Web provider/policy availability，不能當作正式授權或全依賴 health。
+同版 0.4.0 最後回歸：ingress 64、session 57、sharing 53、restart 51、outage 32 均通過。
+每次主題操作後重新開瀏覽器載入當前前端，再以 fresh login/intent 真正執行 SSH。
+完整 1.2.0 ZIP 解壓後 72 項 Python 與 152 項 ledger 一致性檢查通過；詳細測量見入口 TXT。
+本輪未重跑 gate 21+5、TOTP 46、UI/CRUD 132，這些數字保留為舊批次結果；遠端 CI 未執行。
+
+2026-10-31 前批：原 0.3.0 的 outage suite 32 項通過，見 PAM_OUTAGE_PROBE.zh-TW.txt。
+DB 暫停時未到期資格不能連線、新資格不能發出；本地 deadline 在 DB 恢復前關閉真實 SSH。
+guacd SIGKILL 後活動連線斷開，底層失敗消耗資格，恢復後 fresh intent 才可建立新 SSH。
+單次觀測：DB pending connect 拒絕 4945ms、issue 拒絕 2022ms、deadline 確認超時 667ms；
+guacd kill 後斷線 225ms、原生 connect timeout 15099ms，均非 SLA；DB timeout 前提為 1 秒。
+65 項 Python、6 項前端模型與語法檢查通過；新增目標歸屬防誤操作 6 項。
+後端/JAR 未改，session 57/sharing 53/restart 51/gate 21+5/TOTP 46 為前批歷史證據，
+失聯批次未重跑。遠端 workflow 只更新來源，未執行 GitHub CI。
+
+2026-10-31 前批：0.3.0 restart suite 51 項通過（含 POSIX byte-range lock 案例）。
+JAR：afa4a80ea6380ae127cce961f27de80d2d1f74a49cbe3b32e3d94de5b020b6b3。
+驗證正常重建/SIGKILL 後拒絕舊政策及舊 handle，checkpoint 損毀/缺檔/權限/鎖/唯讀拒新。
+修復可寫 state 後新政策落盤，fresh SSH 可執行；59 項 Python、6 項前端模型通過。
+詳細環境、觀測值、初始化/復原限制及信任邊界見 PAM_RESTART_PROBE.zh-TW.txt。
+同版 0.3.0 共享回歸 53 項通過（分享收緊 132ms、父子 revoke 29ms，均非 SLA）。
+同版原 session 57 項亦通過；原 gate 21+5、TOTP 46 為前批歷史紀錄，本次未重跑。
+
+2026-10-31 新共享專項 53 項通過；0.2.0 原 session 57、原 gate 21+5、TOTP 46 亦重跑通過。
+新 JAR：4347655b98d958867a1145aec7924a2451a2afa6abab2b92968a91d2ca917fe8。
+舊 key 原生仍有效但新 connect 被拒；既有分享也真實斷線，primary 與另一人仍能執行命令。
+單次本機分享收緊 130ms、父 revoke 關父/子 32ms；不是 SLA。
+0.2.0 的 high-water mark 僅在記憶體；0.3.0 已另補本機 checkpoint，正式 PolicyEngine 未建。
+
+0.1.0 歷史 session suite：57 項通過；該批原 G01 21＋5 與 TOTP 46 均再跑通過。
+Session JAR：86ccba8f32197f034a65da9ed329543b404bc8db9e900a89ce5fa0c928a5932d。
+單次本機量測：owner close 18ms、native remove 47ms、context revoke 18ms、deadline 確認超時 6ms。
+屬單一 fixture 的觀測值，不是對外 SLA；舊目標背景程序在關閉 tunnel 後仍可存活。
+OpenSSH fixture 在最終重跑前增加無預建 host key 檢查，57 項再通過；新 fixture 無正式資料；所有測試容器與手動建立的 SSH image tag 已清理。
+
+ledger 防誤記錄批次：53 項 Python（原 47＋6 項 ledger 防誤記錄測試）、G01 21＋5 項通過。
+53 項來源檢查包含日期不能超前、未開始不能記完成、通過不能缺完成日、證據檔存在、
+計畫變更必須重新核對 coverage、152 項欄位一致性。此檢查不會自動把功能標記通過。
+G01 產物 SHA-256：dc2c5f1e2ef5c6a8dcc3cf8dbd5dd054f5b0669ac501ac5f1460de4faa2baa0f。
+JAR 不混入 Guacamole 核心 API；class major 52；預建物位於 dist/poc，僅供隔離試驗。
+G01/共享批次沒有重跑全部既有 UI/CRUD 132 項；下列該結果保留為歷史證據，主題未修改。
+共享 fixture 的預設 TOTP suite 已在 0.2.0 批次重新執行，46 項全部通過，確認 callback 分支
+不影響既有 MFA 與部署保護試驗；所有新建測試容器已清理，沒有正式變更。
+
+本機已執行：47 項 Python 單元／交易檢查、6 項前端模型檢查與前端語法檢查通過。
+官方 Docker PAM 隔離驗收 46 項檢查通過，包括 MFA 綁定／重設及三種主題操作持續性。
+既有 Docker 瀏覽器回歸 132 項通過（首頁／權限 28；LibreNMS 設定 52；Dark 設定 52），
+包含實際原生 CRUD，以及主題 reset、restore、故障 rollback / recover 的 Docker 循環。
+既有翻譯 JAR 與 db / guacd 容器識別在該隔離回歸環境維持原值。
+可重現建置、完整套件解壓後的 47 項 Python 測試、隔離 prefix 的 1.1.0→1.2.0 CLI
+升級與原執行檔備份均通過。這些測試沒有改變正式服務。
+下列命令可以在乾淨來源重現：
+  sh scripts/test.sh
+  python3 tests/pam_acceptance.py
+  python3 tests/docker_acceptance.py
+
+第一個 PAM 隔離試跑停在 guacd 健康等待，已將測試 fixture 改為較短的相同探測間隔。
+第二次試跑已通過官方模組載入、TOTP 綁定及參數／他人／資產權限檢查；測試發現
+沒有 user READ 權限的讀取者連本人 user resource 都被拒絕，已修正測試接受這項
+更嚴格的原生行為，沒有放寬伺服器權限或替帳號增加權限。
+恢復流程另曾遇到 HTTP 429，核對為官方預設 IP ban 被大量負面測試觸發；
+調整測試只在讀取者集中執行錯碼／重放，保留預設模組與門檻，再重跑完整流程。
+最終通過的權限結果：讀取者可 GET 已授權連線；目標 parameters 為 HTTP 403；
+未授權 user resource（含本人）及自身停用 MFA 的 PUT 為 HTTP 404；管理員可讀取
+測試使用者但看不到原始 seed，清除綁定後本人可使用新 seed 完成綁定。
+
+本次隔離驗收使用的官方映像摘要（僅測試映像，不含正式環境資訊）：
+guacamole/guacamole:1.6.0
+  sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40
+guacamole/guacd:1.6.0
+  sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f
+postgres:16
+  sha256:1beaa3084eee2676f20a9cd9928f0bf2c5bf674f8e49f81017912183d377c61c
+不同平台或映像更新時須重新驗證，不因 tag 相同就宣稱已通過。
+
+四、正式環境影響
+
+沒有修改正式 Compose、資料庫、帳號、權限、連線或擴充；沒有重建正式容器。
+本機產出 1.2.0 套件，但沒有推送 Git repository、建立 GitHub Release 或自動升級正式 CLI。
+主題內容與版本維持 1.1.0，所以不會出現新的 PAM 功能頁或手機綁定畫面。
+使用新版本原始碼對既有部署執行唯讀 doctor 已通過，確認與目前 Compose 清單相容；
+未安裝到正式 CLI 路徑。所有本輪隨機隔離驗收容器均已清理。
+
+五、後續代理工作
+
+兩種 POC 已建立，0.2.0 補有效舊共享憑證與既有 HTTP read/write；0.3.0 補 Web 重啟與
+高水位儲存故障，接續補 DB pause/guacd 失聯，0.4.0 補獨立 entry/bootstrap 與主題持續性。
+下一步補實選資產、G03 歷史/錄影隔離、正式 profile，以及其他 provider/協定與
+IdP/控制服務/worker 失聯、完整 DB 故障矩陣，再接上
+正式 grant/MFA、容量、政策與領域持久化。G02 仍需跨節點與其餘協定證據，
+不能把閘道斷線說成目標 OS 登出。
+補 G03 歷史／錄影資料隔離及 P01 真實目標錄影、回放、容量與復原，再決定正式試點。
+外包正式存取須達原規劃的最低條件；目前 vendor access 不應開啟。
+
+未來安全工具必須讀相同 state/config.json 並取得相同 .lock，不可自存只含主檔的設定。
+如果需要安全 JAR 的版本升級、guard 放寬或受控緊急停用，要新增明確的備份、入口封鎖、
+驗證與復原流程，不能修改主題 reset 讓它順便解除安全要求。

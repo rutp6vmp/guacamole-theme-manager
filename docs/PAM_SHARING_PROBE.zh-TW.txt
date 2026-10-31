@@ -1,0 +1,126 @@
+PAM 已發共享憑證、既有 tunnel 與政策故障驗證
+處理／驗證日期：2026-10-31（Asia/Taipei）
+版本：session probe 0.2.0；Guacamole 1.6.0；單 Web/JDBC/SSH；僅隔離試驗。
+目前來源已續作 0.4.0，獨立入口見 PAM_INGRESS_PROBE.zh-TW.txt；下列舊版實測保留供追溯。
+此為 0.2.0 歷史實測；0.3.0 的 checkpoint/重啟續作見 PAM_RESTART_PROBE.zh-TW.txt。
+對應：G01-03、G02-01/02、F07-03/06/07、F08-01/02/03、E/F/J/K。
+
+一、本輪結果
+
+以真實 OpenSSH、官方 guacd 及 Guacamole.Client 執行，新增共享專項 53 項通過。
+不是用不存在的 active ID、假憑證或 Web 重啟後已失效的分享連結作負面測試。
+
+先在同一個運行中的 Web 載入探針，以明確的 sharing-control 模式建立正向對照：
+原生分享憑證確實可登入；匿名 HTTP 與 WebSocket、管理員 active join 都可在同一個
+SSH terminal 執行指令。然後只原子替換 read-only bind 目錄內的政策檔，不重啟 Web。
+
+generation 1 sharing-control → generation 2 enforce：
+1. 已連上的兩種匿名 sharing transport 與 active join 全部實際斷線。
+2. 原來 primary 與另一個人的 primary 仍能執行新指令；不是整個 Web 一起被重啟。
+3. 同一份舊 share key 仍可經原生 /api/tokens 登入，且原生 shared tree 仍有合法目標。
+4. 但舊登入的 WebSocket、新登入的 HTTP 都不能建立新 tunnel，後端回 CLIENT_FORBIDDEN。
+5. 新增分享憑證及直接 active join 也被拒絕，不能借一般 PostgreSQL 身份路徑繞過。
+6. 原生 HTTP tunnel bearer 在收緊前確實可直接送出鍵盤指令；關閉後 read 回 404，
+   晚到的 write 沒有在目標建立測試檔。本輪 write 也回 404。
+
+另外通過：
+7. 匿名共享身份不能取得一般資產的 prototype intent。
+8. policy generation 回退、同代號換內容、缺檔及未知 schema 均拒絕新啟動。
+9. 政策檔遺失時關閉已連共享；既有 primary 仍受獨立本地 deadline 限制並真正斷線。
+10. 較高 generation 修復後可繼續試驗，不用重建 Web 或放寬版本檢查。
+11. 正向對照模式下撤銷父登入，父 lease 與所追蹤的共享／active-join 子 tunnel 都關閉；
+    另一人的 primary 在關閉後仍可執行新指令，沒有按 username 盲目群殺。
+
+單次本機觀測（不是 SLA）：
+政策原子替換至全部既有共享斷線：130 ms。
+父 context revoke 至父與已追蹤子連線斷線：32 ms。
+本次 JAR SHA-256：4347655b98d958867a1145aec7924a2451a2afa6abab2b92968a91d2ca917fe8。
+SSH fixture image ID：sha256:3e23b096c67c72321549e4f22df575369b32e82938dc1690374b52c00e0eb31e。
+openssh-server：1:9.2p1-2+deb12u10；映像無預建 host key，runtime 生成。
+
+二、接入差異與原創實作
+
+Guacamole 1.6.0 的 PostgreSQL 分享登入，資料來源是 postgresql-shared，不是 postgresql。
+SharedConnection 接受的 identifier 是原生 share key；只處理一般 connection directory 或
+只禁止建立新 sharing credentials，都不能代替這條路徑的實際 connect 檢查。
+本次沿用公開 AuthenticationProvider/UserContext/Connection/ActiveConnection API 裝飾，
+沒有匯入 Guacamole 私有 JDBC 類別、修改 WAR 或複製商業 PAM 原始碼。
+
+正向對照期間透過原生 ActiveConnection.getSharingCredentials 取得官方憑證，
+只接受 1.6.0 確認過的單一 key 欄位；內部以 SHA-256 摘要映射父 lease，不保存新的
+明文副本、不印出 key。原生 SharedConnection.identifier 再做同樣摘要找父 lease。
+native ActiveConnection.identifier 與原始 GuacamoleTunnel.getUUID 對應父 lease，
+不以 username 或可偽造 HTTP header 推測歸屬。關聯已用真實分享／join 實測。
+
+共享建立前、底層 connect 返回後均重查分享控制與父 lease；所有成功的 child tunnel
+加入父集合及 provider 級追蹤。父 close、期限或 revoke 先關 child 再確認自己的 closure。
+子連線關閉失敗時不能把父狀態誤報 ENDED；政策監看對未關閉 child 下輪重試。
+分享已被禁止、父已結束或必要政策無效時，都拒絕新的 shared connect。
+
+三、可重現的測試政策，不是產品 PolicyEngine
+
+PAM_SESSION_PROBE_ENABLED=fixture-only 是必要的測試 opt-in。
+PAM_SESSION_PROBE_POLICY_FILE 指向 read-only bind 目錄內的普通檔案。
+未設定該路徑時維持 0.1.0 的預設：禁止 sharing，既有 57 項 session suite 可照常執行。
+
+檔案採嚴格 LF 格式、最多 256 bytes：
+schemaVersion=1
+generation=1
+mode=sharing-control
+
+mode 只有 sharing-control 或 enforce。sharing-control 刻意允許受追蹤的原生分享作為
+正向對照，不能當作正式環境開關。瀏覽器沒有修改這份檔案的 API。
+host 端以同目錄 temporary file + replace 寫入，掛載整個目錄，避免 atomic replace 後
+容器仍綁住舊檔案 inode。內容沒有帳密；private fixture 外層目錄隔離，Web 只讀。
+
+generation 只允許增加；同 generation 僅可重讀完全相同的已接受模式。回退、重複欄位、
+換行／schema 不符、缺檔、超長或 symlink 檔案都視為無效，保留記憶體中的 high-water mark。
+0.2.0 high-water mark 沒有持久化；0.3.0 已另以 checkpoint 與 restart suite 補驗，見重啟文件。
+匿名 sharing 身份不能查 prototype policy/lease 或發 intent。
+fixture 身份的 GET policy 僅回 healthy/generation/sharingControl，不回檔案路徑、秘密或他人 session。
+
+監看每 100 ms 檢查一次，以獨立 scheduler 處理；不與 primary lease deadline 共用執行緒。
+政策失效策略：拒絕新啟動、關閉追蹤到的分享；已存在的 primary 保留原本有界 lease，
+到期仍由本地 timer 關閉。本輪驗證的是本機政策檔故障，不是 DB/IdP/控制服務失聯全矩陣。
+
+四、執行方式
+
+建置目前來源 0.4.0（JDK 9+ 或既有 JRE+ECJ，沿用先前參數）：
+  python3 scripts/build_pam_probe.py --probe session --war /path/to/guacamole-1.6.0.war
+產物在 dist/poc-session/，和原 deny-only gate probe 分開。
+
+原 session 回歸：
+  python3 tests/session_acceptance.py --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+共享專項：
+  python3 tests/session_acceptance.py --suite sharing \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+
+0.3.0 的 sharing fixture 會自動初始化新的私有 checkpoint 並交給 Web runtime UID/GID。
+人工試驗若設定政策檔，必須同時配置 STATE_DIR；不能沿用缺 state 的 0.2.0 設定。
+
+需 Docker、Node、Playwright；可沿用有測試 label 且無預建金鑰的 SSH image，或由腳本
+建立自己的隨機 image tag。密碼、share key、Guacamole login/tunnel bearer 只經 private
+記憶體或 fixture；瀏覽器 IPC 的 http-reference 只供測試原生 read/write，不寫進報告。
+程式不接受正式 Compose／資料庫作目標，不把 raw HTTP 回應、headers、token 或 key 印出。
+原 0.1.0 JAR 及當時完整來源包已另存本機備份，不與 0.2.0 混用。
+
+五、尚未完成
+
+這是 P00 隔離探針，不是正式 grant、角色/合約、MFA freshness、容量或 policy_version 引擎。
+sharing-control 不是可公開的正式產品政策，也不代表 native share key 被 IdP／身份後端撤銷。
+原生共享登入仍可能成功，只是 PAM 的 connect 被拒絕；產品 UI 未來必須正確表達兩層狀態。
+單節點/JDBC/SSH 才有本輪證據；多來源同 ID、balancing 實選資產、RDP/VNC、錄影、HA、
+全面故障矩陣仍待驗收；0.3.0 的 Web restart/本機高水位另見重啟文件，G01/G02 仍非全部完成。
+已進行的底層握手無法同步取消；本次在返回後補查再關閉，不承諾所有 in-flight SLA。
+Jar 遺失時的外部入口 fail-closed 仍是 G04 未完成部分。
+
+官方來源，均為 tag 1.6.0、commit 0537c89cd783681b986ff8f8c4e0b97ec6873371：
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/src/main/java/
+  org/apache/guacamole/auth/postgresql/PostgreSQLSharedAuthenticationProvider.java
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-base/src/main/java/
+  org/apache/guacamole/auth/jdbc/sharing/connection/SharedConnection.java
+  org/apache/guacamole/auth/jdbc/sharing/ConnectionSharingService.java
+  org/apache/guacamole/auth/jdbc/tunnel/ActiveConnectionRecord.java
+guacamole-common/src/main/java/org/apache/guacamole/servlet/GuacamoleHTTPTunnelServlet.java
+https://guacamole.apache.org/doc/1.6.0/gug/administration.html
+https://guacamole.apache.org/doc/1.6.0/gug/guacamole-ext.html

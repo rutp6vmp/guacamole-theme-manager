@@ -1,0 +1,651 @@
+#!/usr/bin/env python3
+"""GuacTheme Manager. Python 3.10+, standard library only. Apache-2.0."""
+import argparse
+import contextlib
+import datetime as dt
+import fcntl
+import hashlib
+import io
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+import zipfile
+
+VERSION = "1.2.0"
+GUAC_VERSION = "1.6.0"
+MANAGED = "guac-theme-managed.jar"
+MAX_SIZE = 32 * 1024 * 1024
+MAX_FILES = 512
+IDENT = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
+HEX = re.compile(r"[a-f0-9]{64}\Z")
+FEATURES = {
+    "totp": ("TOTP_ENABLED", 'Extension "TOTP TFA Authentication Backend" (totp) loaded.'),
+    "recording": ("RECORDING_ENABLED", 'Extension "Session Recording Storage" (recording-storage) loaded.'),
+}
+
+
+class ThemeError(Exception):
+    pass
+
+
+def require(ok, message):
+    if not ok:
+        raise ThemeError(message)
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def json_read(data):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "Duplicate JSON property")
+            result[key] = value
+        return result
+    try:
+        return json.loads(data, object_pairs_hook=unique)
+    except (ValueError, UnicodeError, TypeError):
+        raise ThemeError("Invalid JSON") from None
+
+
+def safe_path(value, exists=False):
+    p = Path(os.path.abspath(os.path.expanduser(str(value))))
+    for part in [*reversed(p.parents), p]:
+        require(not part.is_symlink(), "Symlink paths are not allowed")
+    require(not exists or p.exists(), "Required path does not exist")
+    return p
+
+
+def write_atomic(path, data, mode=0o600):
+    path = safe_path(path)
+    fd, name = tempfile.mkstemp(prefix=".gtm-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        syncfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(syncfd)
+        finally:
+            os.close(syncfd)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def write_json(path, value):
+    write_atomic(path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
+
+
+def archive(data):
+    require(len(data) <= MAX_SIZE, "Archive exceeds size limit")
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            infos = z.infolist()
+            require(0 < len(infos) <= MAX_FILES, "Invalid archive file count")
+            require(sum(i.file_size for i in infos) <= MAX_SIZE, "Archive expands beyond size limit")
+            files = {}
+            seen = set()
+            for i in infos:
+                name = i.filename
+                p = PurePosixPath(name)
+                require(name and "\\" not in name and not p.is_absolute()
+                        and all(x not in ("", ".", "..") for x in name.rstrip("/").split("/"))
+                        and not re.search(r"[\x00-\x1f\x7f:]", name), "Unsafe archive path")
+                require(name not in seen, "Duplicate archive path")
+                seen.add(name)
+                mode = i.external_attr >> 16
+                require(stat.S_IFMT(mode) in (0, stat.S_IFREG, stat.S_IFDIR), "Archive contains special file")
+                require(not i.flag_bits & 1, "Encrypted archives are not supported")
+                require(i.file_size <= max(i.compress_size, 1) * 250, "Excessive compression ratio")
+                if not i.is_dir():
+                    files[name] = z.read(i)
+            return files
+    except (zipfile.BadZipFile, RuntimeError, NotImplementedError, OSError):
+        raise ThemeError("Invalid or damaged ZIP/JAR") from None
+
+
+def metadata(value):
+    require(isinstance(value, dict), "theme.json must be an object")
+    require(value.get("schemaVersion") == 1, "Unsupported theme schema")
+    require(isinstance(value.get("id"), str) and IDENT.fullmatch(value["id"])
+            and value["id"] != "default", "Invalid theme id")
+    for key in ("name", "version", "author", "description"):
+        require(isinstance(value.get(key), str) and 0 < len(value[key]) <= 500
+                and not re.search(r"[\x00-\x1f\x7f]", value[key]), "Missing/invalid theme metadata")
+    require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?", value["version"]), "Invalid theme version")
+    require(value.get("guacamoleVersions") == [GUAC_VERSION], "This release supports Guacamole 1.6.0 only")
+    require(value.get("entry") == "guacamole-" + value["id"] + ".jar", "Invalid JAR entry name")
+    hashes = value.get("sha256")
+    require(isinstance(hashes, dict) and set(hashes) == {value["entry"]}
+            and isinstance(hashes[value["entry"]], str) and HEX.fullmatch(hashes[value["entry"]]), "Invalid SHA-256 metadata")
+    return value
+
+
+def validate_jar(data, meta):
+    require(digest(data) == meta["sha256"][meta["entry"]], "JAR SHA-256 mismatch")
+    files = archive(data)
+    require("guac-manifest.json" in files, "Missing guac-manifest.json")
+    m = json_read(files["guac-manifest.json"])
+    require(isinstance(m, dict), "Invalid extension manifest")
+    require(m.get("guacamoleVersion") == GUAC_VERSION, "Incompatible extension version")
+    require(m.get("namespace") == "gtm-" + meta["id"] and m.get("name") == meta["name"], "Extension identity mismatch")
+    require(set(m) <= {"guacamoleVersion", "namespace", "name", "css", "js", "html", "translations", "resources"},
+            "Only static theme extensions are supported (no Java/authentication providers)")
+    declared = {"guac-manifest.json"}
+    for kind in ("css", "js", "html", "translations"):
+        names = m.get(kind, [])
+        require(isinstance(names, list) and all(isinstance(n, str) and n in files for n in names), "Missing declared resource")
+        declared.update(names)
+    resources = m.get("resources", {})
+    require(isinstance(resources, dict) and all(isinstance(v, str) and k in files for k, v in resources.items()), "Invalid resources")
+    require(resources.get("theme-marker.json") == "application/json", "Missing theme-marker.json resource")
+    marker = json_read(files["theme-marker.json"])
+    require(marker == {"id": meta["id"], "version": meta["version"]}, "Theme load marker mismatch")
+    declared.update(resources)
+    require(set(files) == declared, "JAR has undeclared files")
+    require(all(not n.lower().endswith((".class", ".jar", ".so", ".dll", ".exe", ".sh", ".py"))
+                and not n.upper().startswith("META-INF/") for n in files), "Executable/JVM resources are not allowed")
+    require(m.get("css"), "Theme must declare CSS")
+    return m
+
+
+def validate_package(data):
+    files = archive(data)
+    require("theme.json" in files, "Missing theme.json")
+    meta = metadata(json_read(files["theme.json"]))
+    entry = meta["entry"]
+    require(set(files) == {"theme.json", entry, "SHA256SUMS"}, "Unexpected package files")
+    expected = "".join(digest(files[n]) + "  " + n + "\n" for n in sorted([entry, "theme.json"]))
+    require(files["SHA256SUMS"] == expected.encode(), "Package checksum mismatch")
+    validate_jar(files[entry], meta)
+    return meta, files
+
+
+class Manager:
+    def __init__(self, state):
+        self.root = safe_path(state)
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        require(self.root.is_dir(), "State path must be a directory")
+        require(self.root.stat().st_uid == os.geteuid() and not self.root.stat().st_mode & 0o022,
+                "State directory must be owned by the operator and not group/world writable")
+        for d in ("themes", "backups"):
+            safe_path(self.root / d).mkdir(mode=0o700, exist_ok=True)
+        self.config_file = self.root / "config.json"
+        self.state_file = self.root / "current.json"
+        self.pending = self.root / "pending.json"
+
+    @contextlib.contextmanager
+    def lock(self):
+        p = safe_path(self.root / ".lock")
+        with p.open("a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            yield
+
+    def config(self):
+        require(safe_path(self.config_file).is_file(), "Run guac-theme configure first")
+        c = json_read(self.config_file.read_bytes())
+        safe_path(c["extensionsDir"], exists=True)
+        for path in c["composeFiles"]:
+            safe_path(path, exists=True)
+        return c
+
+    def state(self):
+        if safe_path(self.state_file).exists():
+            return json_read(self.state_file.read_bytes())
+        return {"id": "default", "sha256": None, "namespace": None, "name": None}
+
+    def configure(self, args):
+        require(not self.pending.exists() and self.state()["id"] == "default", "Reset/recover before changing configuration")
+        if self.config_file.exists():
+            require(not self.config().get("deploymentGuard"),
+                    "Protected deployment: configure cannot remove security requirements; use protect-deployment to adopt verified configuration")
+        ext = safe_path(args.extensions_dir, exists=True)
+        require(ext.is_dir() and ext != self.root and ext not in self.root.parents
+                and self.root not in ext.parents, "Extensions and manager state must be separate directories")
+        require(not (ext / MANAGED).exists(), "Reserved managed JAR already exists")
+        compose = [str(safe_path(p, exists=True)) for p in args.compose_file]
+        require(all(Path(p).is_file() for p in compose), "Compose paths must be files")
+        require(re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", args.service), "Invalid Compose service")
+        u = urllib.parse.urlsplit(args.web_url)
+        require(u.scheme in ("http", "https") and u.hostname and not u.username and not u.password
+                and not u.query and not u.fragment, "Web URL must be HTTP(S), without credentials, query or fragment")
+        c = {"extensionsDir": str(ext), "composeFiles": compose, "service": args.service,
+             "webUrl": args.web_url.rstrip("/") + "/", "guacamoleVersion": GUAC_VERSION,
+             "projectName": args.project_name, "timeout": args.timeout}
+        if args.project_name:
+            require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", args.project_name), "Invalid project name")
+        require(5 <= args.timeout <= 600, "Timeout must be 5..600 seconds")
+        write_json(self.config_file, c)
+        print("Configured. No extensions or containers changed. Run doctor before switching.")
+
+    def protect_deployment(self, args):
+        """Adopt an already-running deployment, including overlays, without restart.
+
+        config.json is the single deployment manifest. Future security tools must
+        use this same file and Manager.lock(), never an independent Compose list.
+        Requirements can only grow through this command.
+        """
+        require(not self.pending.exists(), "Recover unfinished transaction first")
+        c = self.config()
+        previous = c.get("deploymentGuard", {"schemaVersion": 1, "features": [], "extensions": {}})
+        features = sorted(set(previous["features"]) | set(args.require_feature or []))
+        extensions = dict(previous["extensions"])
+        for name in args.protect_extension or []:
+            require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*\.jar", name)
+                    and name != MANAGED, "Protected extension must be a non-theme JAR basename")
+            path = safe_path(Path(c["extensionsDir"]) / name, exists=True)
+            require(path.is_file(), "Protected extension is not a file")
+            value = digest(path.read_bytes())
+            require(name not in extensions or extensions[name] == value,
+                    "Protected extension changed; explicit security upgrade procedure required")
+            extensions[name] = value
+        require(features or extensions, "Specify at least one security feature or protected extension")
+        candidate = dict(c)
+        if args.compose_file:
+            candidate["composeFiles"] = [str(safe_path(p, exists=True)) for p in args.compose_file]
+        candidate["deploymentGuard"] = {"schemaVersion": 1, "features": features, "extensions": extensions}
+        self.preflight(candidate)
+        self.verify(candidate, self.state())
+        # Atomic single-file adoption keeps active theme and old requirements.
+        # No container, Compose source, database or extension is modified.
+        backups = safe_path(self.root / "deployment-backups")
+        backups.mkdir(mode=0o700, exist_ok=True)
+        write_atomic(backups / (uuid.uuid4().hex + ".json"), self.config_file.read_bytes())
+        write_json(self.config_file, candidate)
+        print("Deployment protected. Shared Compose manifest adopted; no containers changed.")
+
+    def check_guard(self, c, environment):
+        guard = c.get("deploymentGuard")
+        if guard is None:
+            return
+        require(isinstance(guard, dict) and set(guard) == {"schemaVersion", "features", "extensions"}
+                and guard["schemaVersion"] == 1 and isinstance(guard["features"], list)
+                and all(isinstance(f, str) and f in FEATURES for f in guard["features"])
+                and isinstance(guard["extensions"], dict), "Invalid deployment guard")
+        for feature in guard["features"]:
+            key = FEATURES[feature][0]
+            require(environment.get(key) == "true",
+                    "Required security feature disabled/missing: " + feature)
+        for name, expected in guard["extensions"].items():
+            require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*\.jar", name)
+                    and name != MANAGED and isinstance(expected, str) and HEX.fullmatch(expected), "Invalid protected extension")
+            path = safe_path(Path(c["extensionsDir"]) / name)
+            require(path.is_file() and digest(path.read_bytes()) == expected,
+                    "Protected security extension missing/modified")
+
+    def theme(self, name):
+        require(IDENT.fullmatch(name) and name != "default", "Invalid theme id")
+        folder = safe_path(self.root / "themes" / name, exists=True)
+        require(folder.is_dir(), "Theme is not imported")
+        meta = metadata(json_read(safe_path(folder / "theme.json", exists=True).read_bytes()))
+        require(meta["id"] == name, "Stored theme identity mismatch")
+        jar = safe_path(folder / meta["entry"], exists=True).read_bytes()
+        m = validate_jar(jar, meta)
+        return meta, jar, m
+
+    def import_theme(self, path, replace=False):
+        p = safe_path(path, exists=True)
+        require(p.is_file() and p.stat().st_size <= MAX_SIZE, "Invalid package size")
+        meta, files = validate_package(p.read_bytes())
+        dest = safe_path(self.root / "themes" / meta["id"])
+        exists = dest.exists()
+        require(not exists or replace, "Theme already imported; use import --replace to back up and update its repository copy")
+        if exists:
+            self.theme(meta["id"])
+        with tempfile.TemporaryDirectory(dir=self.root / "themes", prefix=".import-") as temp:
+            for name, data in files.items():
+                write_atomic(Path(temp) / name, data)
+            previous = None
+            if exists:
+                backups = safe_path(self.root / "repository-backups")
+                backups.mkdir(mode=0o700, exist_ok=True)
+                previous = backups / (meta["id"] + "-" + uuid.uuid4().hex)
+                os.rename(dest, previous)
+            try:
+                os.rename(temp, dest)
+            except BaseException:
+                if previous is not None:
+                    os.rename(previous, dest)
+                raise
+            # TemporaryDirectory tolerates its directory being moved.
+        print("Imported " + meta["id"] + " " + meta["version"] + ". Not activated.")
+        print("Theme JavaScript/HTML runs within your Guacamole origin. SHA-256 checks integrity, not publisher trust.")
+
+    def assert_managed(self, c):
+        state = self.state()
+        p = safe_path(Path(c["extensionsDir"]) / MANAGED)
+        if state["id"] == "default":
+            require(not p.exists(), "Untracked reserved JAR: refusing to overwrite/delete it")
+        else:
+            require(p.is_file() and digest(p.read_bytes()) == state["sha256"], "Managed JAR missing/modified; refusing mutation")
+        return state
+
+    def unrelated(self, c):
+        return {p.name: digest(safe_path(p).read_bytes())
+                for p in Path(c["extensionsDir"]).iterdir()
+                if p.name != MANAGED and p.suffix.lower() == ".jar"}
+
+    def backup(self, c):
+        self.assert_managed(c)
+        bid = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:10]
+        folder = safe_path(self.root / "backups" / bid)
+        folder.mkdir(mode=0o700)
+        state = self.state()
+        if state["id"] != "default":
+            write_atomic(folder / "active.jar", (Path(c["extensionsDir"]) / MANAGED).read_bytes())
+        write_json(folder / "snapshot.json", {"schemaVersion": 1, "state": state,
+                    "extensionsDir": c["extensionsDir"], "unrelated": self.unrelated(c)})
+        return bid
+
+    def snapshot(self, bid, c):
+        require(re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", bid), "Invalid backup id")
+        folder = safe_path(self.root / "backups" / bid, exists=True)
+        s = json_read(safe_path(folder / "snapshot.json", exists=True).read_bytes())
+        require(s.get("schemaVersion") == 1 and s["extensionsDir"] == c["extensionsDir"], "Backup location mismatch")
+        state = s["state"]
+        if state["id"] == "default":
+            return state, None, s
+        jar = safe_path(folder / "active.jar", exists=True).read_bytes()
+        require(digest(jar) == state["sha256"], "Backup checksum mismatch")
+        require(isinstance(state["id"], str) and IDENT.fullmatch(state["id"]), "Invalid backup theme id")
+        entry = "guacamole-" + state["id"] + ".jar"
+        m = validate_jar(jar, {"id": state["id"], "version": state["version"], "name": state["name"],
+                              "entry": entry, "sha256": {entry: state["sha256"]}})
+        require(m["namespace"] == state["namespace"] and m["name"] == state["name"], "Backup identity mismatch")
+        return state, jar, s
+
+    def compose(self, c, *args):
+        cmd = ["docker", "compose"]
+        for p in c["composeFiles"]:
+            require(isinstance(p, str) and "," not in p and Path(p).is_absolute()
+                    and safe_path(p, exists=True).is_file(), "Compose files must be absolute regular paths without commas")
+            cmd.extend(["-f", p])
+        if c.get("projectName"):
+            cmd.extend(["--project-name", c["projectName"]])
+        return cmd + list(args)
+
+    def run(self, cmd):
+        try:
+            p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            raise ThemeError("Docker command unavailable/timed out; no command output is logged") from None
+        require(p.returncode == 0, "Docker command failed. Check Docker access / Compose configuration locally; output suppressed to protect credentials")
+        return p.stdout
+
+    def preflight(self, c, validate_managed=True, allow_missing_container=False):
+        if validate_managed:
+            self.assert_managed(c)
+        data = json_read(self.run(self.compose(c, "config", "--format", "json")))
+        self._compose_digest = digest(json.dumps(data, sort_keys=True).encode())
+        service = data.get("services", {}).get(c["service"])
+        require(isinstance(service, dict), "Configured Web service not found")
+        self.check_guard(c, service.get("environment") or {})
+        image = service.get("image", "")
+        require(re.fullmatch(r"(?:docker.io/)?guacamole/guacamole:1\.6\.0(?:@sha256:[a-f0-9]{64})?", image)
+                and not service.get("build"), "Web service must use official pinned guacamole/guacamole:1.6.0")
+        template_home = (service.get("environment") or {}).get("GUACAMOLE_HOME", "/etc/guacamole")
+        require(template_home is None or str(template_home).rstrip("/") == "/etc/guacamole", "Only the /etc/guacamole template home is supported")
+        matches = [v for v in service.get("volumes", []) if v.get("target") == "/etc/guacamole/extensions"]
+        require(len(matches) == 1 and matches[0].get("type") == "bind" and matches[0].get("read_only") is True
+                and safe_path(matches[0]["source"]) == Path(c["extensionsDir"]), "Expected read-only extensions bind mount not found")
+        for name, other in data.get("services", {}).items():
+            if name != c["service"]:
+                require(not any(v.get("type") == "bind" and safe_path(v["source"]) == Path(c["extensionsDir"])
+                                for v in other.get("volumes", [])), "Extensions directory is shared with another service")
+        ids = self.run(self.compose(c, "ps", "--all", "--quiet", c["service"])).decode().split()
+        if not ids and allow_missing_container:
+            print("Verified recovery Compose scope; missing Web container will be recreated: " + c["service"])
+            return
+        require(len(ids) == 1 and re.fullmatch(r"[a-f0-9]{12,64}", ids[0]), "Expected exactly one existing Web container")
+        info = json_read(self.run(["docker", "inspect", ids[0]]))[0]
+        labels = info.get("Config", {}).get("Labels", {})
+        require(labels.get("com.docker.compose.service") == c["service"]
+                and labels.get("com.docker.compose.project") == data.get("name"), "Container Compose identity mismatch")
+        # The image and mount may match while a live security overlay is missing
+        # from the CLI configuration. Refuse BEFORE touching the theme or Web.
+        actual_files = labels.get("com.docker.compose.project.config_files", "").split(",")
+        require(actual_files == c["composeFiles"],
+                "Runtime Compose file list differs; use protect-deployment with the full ordered file list")
+        runtime_env = dict(item.split("=", 1) for item in info.get("Config", {}).get("Env", []) if "=" in item)
+        self.check_guard(c, runtime_env)
+        require(info.get("Config", {}).get("Image") == image, "Running image differs from Compose configuration")
+        mounts = [m for m in info.get("Mounts", []) if m.get("Destination") == "/etc/guacamole/extensions"]
+        require(len(mounts) == 1 and mounts[0].get("Type") == "bind" and mounts[0].get("RW") is False
+                and safe_path(mounts[0]["Source"]) == Path(c["extensionsDir"]), "Runtime extensions mount mismatch")
+        print("Verified Compose service and read-only extensions mount: " + c["service"])
+
+    def restart(self, c):
+        actual = json_read(self.run(self.compose(c, "config", "--format", "json")))
+        self.check_guard(c, actual.get("services", {}).get(c["service"], {}).get("environment") or {})
+        require(digest(json.dumps(actual, sort_keys=True).encode()) == self._compose_digest,
+                "Compose configuration changed after validation; refusing recreation")
+        self.run(self.compose(c, "up", "-d", "--no-deps", "--force-recreate", "--pull", "never", "--no-build", c["service"]))
+
+    def http(self, url):
+        # No cookies, tokens, credentials or redirects to a different endpoint.
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        with opener.open(urllib.request.Request(url, headers={"Cache-Control": "no-cache"}), timeout=5) as response:
+            data = response.read(8 * 1024 * 1024 + 1)
+            require(response.status == 200 and len(data) <= 8 * 1024 * 1024, "Invalid Web response")
+            return data
+
+    def verify(self, c, state):
+        deadline = time.monotonic() + c["timeout"]
+        while time.monotonic() < deadline:
+            try:
+                ids = self.run(self.compose(c, "ps", "--quiet", c["service"])).decode().split()
+                if len(ids) == 1:
+                    info = json_read(self.run(["docker", "inspect", ids[0]]))[0]
+                    runtime_env = dict(item.split("=", 1) for item in info.get("Config", {}).get("Env", []) if "=" in item)
+                    self.check_guard(c, runtime_env)
+                    running = info.get("State", {}).get("Running") is True
+                    health = info.get("State", {}).get("Health", {}).get("Status", "healthy")
+                    page = self.http(c["webUrl"])
+                    marker = b'ng-app="index"' in page or b"ng-app='index'" in page
+                    logs = self.run(self.compose(c, "logs", "--no-color", "--no-log-prefix", "--tail", "2000", c["service"]))
+                    if state["id"] == "default":
+                        loaded = not re.search(rb'Extension "[^\r\n]*" \(gtm-[a-z0-9-]+\) loaded\.', logs)
+                    else:
+                        expected = ('Extension "' + state["name"] + '" (' + state["namespace"] + ') loaded.').encode()
+                        # Probe a namespaced resource to prove this URL points at the new extension.
+                        marker_url = c["webUrl"] + "app/ext/" + state["namespace"] + "/theme-marker.json"
+                        marker_data = json_read(self.http(marker_url))
+                        loaded = expected in logs and marker_data.get("id") == state["id"] and marker_data.get("version") == state.get("version")
+                    security_loaded = all(FEATURES[f][1].encode() in logs
+                                          for f in c.get("deploymentGuard", {}).get("features", []))
+                    if running and health == "healthy" and marker and loaded and security_loaded:
+                        return
+            except (ThemeError, OSError, ValueError, KeyError, urllib.error.URLError):
+                pass
+            time.sleep(1)
+        raise ThemeError("Web/theme load verification timed out")
+
+    def apply_files(self, c, state, jar):
+        p = safe_path(Path(c["extensionsDir"]) / MANAGED)
+        if jar is None:
+            if p.exists():
+                p.unlink()
+        else:
+            write_atomic(p, jar, 0o644)
+        write_json(self.state_file, state)
+
+    def confirm(self, args, target):
+        if target != "default":
+            print("SECURITY: Theme JS/HTML runs with the logged-in user's privileges. Checksums do not establish trust.")
+            if not args.trust_theme:
+                require(sys.stdin.isatty(), "Review theme code, then explicitly pass --trust-theme")
+                require(input("Trust this theme's code? Type TRUST: ") == "TRUST", "Theme not trusted")
+        print("WARNING: Recreating only the Web service may interrupt active remote sessions.")
+        if not args.yes:
+            require(sys.stdin.isatty(), "Administrator confirmation required: pass --yes after reviewing the interruption")
+            require(input("Recreate Web service? Type YES: ") == "YES", "Cancelled")
+
+    def change(self, name, args, restore=None):
+        c = self.config()
+        require(not self.pending.exists(), "Unfinished transaction: run recover first")
+        if restore:
+            target, jar, _ = self.snapshot(restore, c)
+        elif name == "default":
+            target, jar = {"id": "default", "sha256": None, "namespace": None, "name": None}, None
+        else:
+            meta, jar, m = self.theme(name)
+            target = {"id": name, "sha256": digest(jar), "namespace": m["namespace"], "name": m["name"], "version": meta["version"]}
+        self.preflight(c)
+        self.confirm(args, target["id"])
+        bid = self.backup(c)
+        _, previous_jar, snap = self.snapshot(bid, c)
+        write_json(self.pending, {"backup": bid, "target": target})
+        print("Backup: " + bid)
+        try:
+            self.apply_files(c, target, jar)
+            self.restart(c)
+            self.verify(c, target)
+            require(self.unrelated(c) == snap["unrelated"], "Non-theme extensions changed during operation")
+        except (Exception, KeyboardInterrupt) as failure:
+            print("Activation failed; restoring previous theme and recreating Web service.", file=sys.stderr)
+            try:
+                self.apply_files(c, snap["state"], previous_jar)
+                self.restart(c)
+                self.verify(c, snap["state"])
+                require(self.unrelated(c) == snap["unrelated"], "Non-theme extensions changed; manual review needed")
+                self.pending.unlink()
+            except (Exception, KeyboardInterrupt):
+                raise ThemeError("Rollback files restored but Web recovery could not be verified. Pending transaction retained; run recover after fixing Docker/Web") from None
+            raise ThemeError("Activation failed; previous theme restored and Web verified") from failure
+        self.pending.unlink()
+        print("Active theme: " + target["id"] + ". Web/theme load verified. Refresh browser (Ctrl+Shift+R).")
+
+    def recover(self, args):
+        c = self.config()
+        require(safe_path(self.pending).is_file(), "No unfinished transaction")
+        pending = json_read(self.pending.read_bytes())
+        state, jar, snap = self.snapshot(pending["backup"], c)
+        # Interrupted writes may leave current.json and JAR out of sync. Validate
+        # the managed filename against either the target or backup digest first.
+        p = safe_path(Path(c["extensionsDir"]) / MANAGED)
+        allowed = {state.get("sha256"), pending["target"].get("sha256")}
+        require((digest(p.read_bytes()) if p.exists() else None) in allowed, "Reserved JAR changed outside transaction")
+        # Preflight without accepting a changed/untracked managed JAR.
+        self.preflight(c, validate_managed=False, allow_missing_container=True)
+        self.confirm(args, state["id"])
+        self.apply_files(c, state, jar)
+        self.restart(c)
+        self.verify(c, state)
+        require(self.unrelated(c) == snap["unrelated"], "Non-theme extensions differ from backup; manual review needed")
+        self.pending.unlink()
+        print("Recovered and verified: " + state["id"])
+
+
+def parser():
+    p = argparse.ArgumentParser(description="GuacTheme Manager — Guacamole 1.6.0")
+    p.add_argument("--version", action="version", version=VERSION)
+    p.add_argument("--state-dir", default=os.environ.get("GUAC_THEME_STATE_DIR", "/var/lib/guac-theme"))
+    commands = p.add_subparsers(dest="command", required=True)
+    c = commands.add_parser("configure", help="Save explicit deployment paths (no restart)")
+    c.add_argument("--extensions-dir", required=True)
+    c.add_argument("--compose-file", action="append", required=True)
+    c.add_argument("--service", required=True)
+    c.add_argument("--web-url", required=True)
+    c.add_argument("--project-name")
+    c.add_argument("--timeout", type=int, default=90)
+    c = commands.add_parser("protect-deployment", help="Adopt a running Compose list and pin security requirements; no restart")
+    c.add_argument("--compose-file", action="append", help="Full ordered list, including security overlays")
+    c.add_argument("--require-feature", action="append", choices=sorted(FEATURES))
+    c.add_argument("--protect-extension", action="append", help="Existing non-theme JAR basename; pin SHA-256")
+    for command in ("list", "current", "backup", "doctor"):
+        commands.add_parser(command)
+    c = commands.add_parser("import")
+    c.add_argument("package")
+    c.add_argument("--replace", action="store_true", help="Back up and replace an existing repository copy; active JAR stays unchanged")
+    c = commands.add_parser("remove")
+    c.add_argument("theme")
+    for command in ("switch", "install", "reset", "restore", "recover"):
+        c = commands.add_parser(command)
+        if command in ("switch", "install"):
+            c.add_argument("theme")
+        if command == "restore":
+            c.add_argument("backup_id")
+        c.add_argument("--yes", action="store_true", help="Confirm interruption of active sessions")
+        c.add_argument("--trust-theme", action="store_true", help="Explicitly trust theme JS/HTML")
+    return p
+
+
+def main(argv=None):
+    args = parser().parse_args(argv)
+    try:
+        m = Manager(args.state_dir)
+        with m.lock():
+            command = args.command
+            if m.pending.exists():
+                require(command in ("recover", "current", "list"), "Unfinished transaction: run recover first")
+            if command == "configure":
+                m.configure(args)
+            elif command == "protect-deployment":
+                m.protect_deployment(args)
+            elif command == "import":
+                m.import_theme(args.package, replace=args.replace)
+            elif command == "list":
+                print("ID\tVERSION\tACTIVE")
+                for path in sorted((m.root / "themes").iterdir()):
+                    if not path.name.startswith("."):
+                        meta, _, _ = m.theme(path.name)
+                        print(meta["id"] + "\t" + meta["version"] + "\t" + str(m.state()["id"] == meta["id"]).lower())
+                print("default\t(native)\t" + str(m.state()["id"] == "default").lower())
+            elif command == "current":
+                if m.config_file.exists() and not m.pending.exists():
+                    m.assert_managed(m.config())
+                print(json.dumps({**m.state(), "recoveryRequired": m.pending.exists()}, ensure_ascii=False))
+            elif command == "doctor":
+                c = m.config()
+                m.preflight(c)
+                m.verify(c, m.state())
+                print("Web and current theme verified")
+            elif command == "backup":
+                print(m.backup(m.config()))
+            elif command == "remove":
+                require(args.theme != m.state()["id"], "Cannot remove active theme; reset/switch first")
+                m.theme(args.theme)
+                shutil.rmtree(safe_path(m.root / "themes" / args.theme))
+                print("Removed inactive theme: " + args.theme)
+            elif command == "recover":
+                m.recover(args)
+            elif command == "restore":
+                m.change(None, args, restore=args.backup_id)
+            else:
+                name = "default" if command == "reset" else args.theme
+                if command == "install" and not (m.root / "themes" / name).exists():
+                    dist = Path(__file__).resolve().parent.parent / "dist"
+                    candidates = sorted(dist.glob("guac-theme-" + name + "-*.zip")) if IDENT.fullmatch(name) else []
+                    require(len(candidates) == 1, "Import the release ZIP first (no network downloads are performed)")
+                    m.import_theme(candidates[0])
+                m.change(name, args)
+        return 0
+    except (ThemeError, OSError, KeyError, TypeError, ValueError, zipfile.BadZipFile):
+        exc = sys.exc_info()[1]
+        # OSError paths/messages may contain private data; expose only our fixed errors.
+        print("Error: " + (str(exc) if isinstance(exc, ThemeError) else "Filesystem/configuration error; check paths, permissions and JSON schema locally"), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

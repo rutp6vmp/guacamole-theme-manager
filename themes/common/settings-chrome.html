@@ -1,0 +1,34 @@
+<div class="gtm gtm-settings-chrome" data-palette="{{chrome.palette}}">
+    <div class="gtm-native-switch" ng-if="chrome.palette === 'default'">
+        <a href="#/">GuacTheme Manager</a>
+        <label>{{'GTM.PALETTE' | translate}}<select ng-model="chrome.palette" ng-change="chrome.applyPalette()">
+            <option value="librenms">LibreNMS</option><option value="dark">Dark</option><option value="light">Light</option><option value="default">{{'GTM.DEFAULT' | translate}}</option>
+        </select></label>
+    </div>
+    <div ng-if="chrome.palette !== 'default'">
+        <aside class="gtm-sidebar" ng-class="{'gtm-open':chrome.mobileOpen}">
+            <a class="gtm-brand" href="#/" ng-click="chrome.goHome('dashboard')"><span class="gtm-mark" aria-hidden="true">G</span><span>GuacTheme<small>CONNECTION MANAGER</small></span></a>
+            <div class="gtm-nav-label">{{'GTM.WORKSPACE' | translate}}</div>
+            <nav aria-label="{{'GTM.NAVIGATION' | translate}}">
+                <a href="#/" ng-click="chrome.goHome('dashboard')"><span aria-hidden="true">▦</span>{{'GTM.DASHBOARD' | translate}}</a>
+                <a href="#/" ng-click="chrome.goHome('devices')"><span aria-hidden="true">▤</span>{{'GTM.ALL' | translate}}</a>
+                <a href="#/" ng-click="chrome.goHome('favorites')"><span aria-hidden="true">☆</span>{{'GTM.FAVORITES' | translate}}</a>
+                <a ng-repeat="page in chrome.history" ng-href="#{{page.url}}" ng-class="{selected:chrome.isCurrent(page)}" ng-attr-aria-current="{{chrome.isCurrent(page)?'page':undefined}}"><span aria-hidden="true">◷</span>{{'GTM.HISTORY' | translate}}<small>{{chrome.sourceLabel(page)}}</small></a>
+            </nav>
+            <div class="gtm-nav-label">{{'GTM.SETTINGS' | translate}}</div>
+            <nav aria-label="{{'GTM.SETTINGS' | translate}}">
+                <a ng-repeat="page in chrome.pages" ng-href="#{{page.url}}" ng-class="{selected:chrome.isCurrent(page)}" ng-attr-aria-current="{{chrome.isCurrent(page)?'page':undefined}}"><span aria-hidden="true">⚙</span>{{chrome.pageLabel(page) | translate}}<small>{{chrome.sourceLabel(page)}}</small></a>
+            </nav>
+            <div class="gtm-sidebar-footer"><span class="gtm-dot" aria-hidden="true"></span>Apache Guacamole <b>1.6.0</b><small>GuacTheme Manager · v{{chrome.version}}</small></div>
+        </aside>
+        <header class="gtm-topbar gtm-settings-topbar">
+            <button class="gtm-menu-toggle" ng-click="chrome.mobileOpen=!chrome.mobileOpen" aria-label="{{'GTM.NAVIGATION' | translate}}" aria-expanded="{{chrome.mobileOpen}}">☰</button>
+            <a class="gtm-return" ng-href="{{chrome.backHref}}">‹ {{'GTM.BACK_TO_LIST' | translate}}</a>
+            <div class="gtm-tools"><label class="gtm-palette-label"><span>{{'GTM.PALETTE' | translate}}</span><select ng-model="chrome.palette" ng-change="chrome.applyPalette()" aria-label="{{'GTM.PALETTE' | translate}}">
+                <option value="librenms">LibreNMS</option><option value="dark">Dark</option><option value="light">Light</option><option value="default">{{'GTM.DEFAULT' | translate}}</option>
+            </select></label><guac-user-menu></guac-user-menu></div>
+        </header>
+        <div class="gtm-breadcrumb"><a href="#/">Guacamole</a><span>/</span>{{'GTM.SETTINGS' | translate}}</div>
+        <div class="gtm-notice" ng-if="chrome.storageError" role="status">{{'GTM.STORAGE_ERROR' | translate}}</div>
+    </div>
+</div>

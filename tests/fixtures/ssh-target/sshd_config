@@ -1,0 +1,17 @@
+Port 22
+ListenAddress 0.0.0.0
+PidFile /run/sshd.pid
+HostKey /etc/ssh/ssh_host_ed25519_key
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+PubkeyAuthentication no
+PermitRootLogin no
+PermitEmptyPasswords no
+AllowUsers probe
+UsePAM no
+PrintMotd no
+PrintLastLog no
+X11Forwarding no
+AllowTcpForwarding no
+PermitTunnel no
+LogLevel ERROR

@@ -1,0 +1,117 @@
+PAM 真實 SSH 錄影與受控回放原型
+處理日期：2026-10-31（Asia/Taipei）
+版本：session probe 0.5.0；Guacamole 1.6.0；單 Web/JDBC/SSH；localhost 隔離試驗。
+對應：F05-01/02/03/05/06、G03-02、P01、P00、G/L。
+延續 PAM_SYSTEM_PLAN.zh-TW.txt 的最小權限與真實錄影驗收，不改 WAR 或正式服務。
+
+一、這次新增的能力
+
+官方 recording-storage 模組與真實 guacd/SSH 產生圖形錄影；新原型提供一個只能讀取
+目前登入所擁有、已確認結束之 lease 錄影的後端端點，避免為回放授予連線 UPDATE。
+觀看透過官方 Guacamole.SessionRecording 在瀏覽器解析、播放、seek 並實際渲染像素。
+這不是正式多廠商錄影平台，沒有宣稱完成不可變證據、保存或強制錄影。
+
+官方原生 recording-storage 的可見性還會檢查 ADMINISTER 或連線 UPDATE；
+READ-only 使用者即使可以連資產，也不因此具備原生錄影下載權。
+本次沒有修改官方原生權限、沒有給試點使用者管理員 token 或 UPDATE。
+
+二、後端端點與授權交集
+
+GET /api/session/ext/postgresql/pam-session-probe/leases/{leaseId}/recording
+使用 Guacamole-Token header，沿用原生 session 認證，播放 URL 不帶 bearer token。
+
+必須同時滿足：
+1. PAM_SESSION_PROBE_ENABLED=fixture-only 與既有合成 gtm-* JDBC 身份/context 條件。
+2. PAM_SESSION_PROBE_RECORDING_ENABLED=fixture-only，另設絕對路徑 RECORDING_ROOT。
+   完整變數名為 PAM_SESSION_PROBE_RECORDING_ROOT；缺設定不會放行。
+3. 當前登入 context 未 revoke，已配置的必要 policy/checkpoint 健康。
+4. leaseId 在此伺服器登入的私有 lease map；不同人、同人另一登入或管理員猜 ID 都不通過。
+5. lease 已 ENDED、有 termination confirmation，且底層 tunnel 確實關閉。
+6. 呼叫者目前仍具有該固定資產的 native READ，讀檔前、讀檔後都再次查核。
+7. native history 的 UUID 等於實際 tunnel UUID，username、asset 與原可信 context/lease 相符，
+   native history 也已結束；不接受瀏覽器傳入 username、asset、UUID 或檔案路徑當作證據。
+
+使用 public getPrivileged() 只在後端取得已擁有 lease 的 history metadata，不向外回傳或
+暴露 privileged context、directory、token、連線參數或其他人的記錄。
+為避免誤把 UUID 當 JDBC REST record identifier，使用該資產最近 128 筆 history 的有界查找，
+再精確比對 UUID；未找到就拒絕，不猜數字 ID。這個原型視窗限制不是正式持久化索引。
+
+回應是 application/octet-stream 的記憶體快照；包含 private/no-store、nosniff、固定下載檔名、
+X-PAM-Recording-SHA256 與 X-PAM-Recording-State: validated-snapshot。
+SHA-256 是本次 bytes 的校驗碼，不能用來宣稱對主機／DB 管理員防竄改。
+目前觀看取得的 bytes 也能下載，沒有把同一端點說成已完成觀看／下載兩套正式權限。
+
+三、儲存、格式與容量邊界
+
+新程式 RecordingStore.java：
+modules/guacamole-adapter-1.6/session-probe/src/main/java/org/guactheme/pam/sessionprobe/
+  RecordingStore.java；SessionProbeProvider.java。
+
+固定讀取 RECORDING_ROOT/<native history UUID>/session.guac；路徑來自伺服器原生記錄。
+拒絕相對 root、路徑任一層 symlink、非一般檔案、缺檔、空檔及超過 8 MiB 的檔案。
+用 NOFOLLOW 開啟並核對讀取前後大小，strict UTF-8 解碼，使用官方 ReaderGuacamoleReader
+解析全部指令且至少有兩筆 sync；拒絕 key 事件、錯誤格式或不完整的最後指令。
+官方 reader 在 EOF 可能忽略半筆尾端，原型另比對已消耗字元數，避免誤判格式完整。
+8 MiB 是原型上限，正式長錄影需要串流／分段、容量治理、快取與併發資源限制。
+
+工作階段結束不代表 guacd 已完成所有尾端寫入，實測可能再補一筆 sync。
+此端點只回驗證過的當下快照，沒有 AVAILABLE/FINALIZING 狀態機或可信 writer completion receipt。
+測試曾確認兩次內容相同後仍追加資料，因此最後版在兩條 lease 結束後停止該隔離 guacd，
+確認 writer 真正停止，才作固定 bytes 比對與離線播放；這不是正式自動封存機制。
+完整指令邊界上的截短、讀取前的合法格式替換，仍不能靠目前 checksum 判斷原始完整性。
+
+四、可攜隔離 fixture
+
+tests/recording_fixture.py 為新建 tmp project 建立獨立目錄，查詢實際 Web/guacd UID/GID。
+使用 guacd UID 擁有、Web group 可讀的 setgid 2750 目錄，guacd 以 umask007 啟動。
+guacd 以 RW bind 寫入，Web 僅 RO bind；不採 world-writable 0777。
+保持官方 guacd entrypoint，僅在前面設定 umask，不替換其連線功能。
+結束時只清理自有 fixture，還原目錄擁有者讓外層刪除；沒有正式錄影／帳號／設定遷移。
+
+合成連線參數：
+recording-path=${HISTORY_PATH}/${HISTORY_UUID}
+recording-name=session.guac
+create-recording-path=true
+recording-include-keys=false
+recording-exclude-mouse=true
+
+HISTORY_PATH 由官方 recording-storage 加入，HISTORY_UUID 由 JDBC 原生連線建立時產生。
+資料只含合成 SSH 目標與測試畫面，帳密只經私有記憶體／fixture；報告不輸出錄影 bytes、
+截圖、typed text、token、完整 HTTP 回應或 URL query。
+不記 key 事件不代表畫面中的秘密自動遮罩，正式錄影仍須有存取與告知政策。
+
+五、執行與目前驗證
+
+  python3 scripts/build_pam_probe.py --probe session --war /path/to/guacamole-1.6.0.war
+  python3 scripts/check_recording_store.py --probe-jar dist/poc-session/guacamole-pam-session-probe-0.5.0.jar \
+    --war /path/to/guacamole-1.6.0.war
+  python3 tests/session_acceptance.py --suite recording \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.5.0.jar
+
+需要 Docker、Node、Playwright 及編譯用 JDK；亦可沿用其他 probe 的 JRE+ECJ 建置選項。
+所有 Java 依賴由官方 WAR 提供，不把 Guacamole API 混入自有 JAR。
+check_recording_store 在私有 temporary directory 編譯/執行測試，不操作 Docker/DB/正式部署。
+
+Java 檔案邊界檢查 11 項已通過：正常 UTF-8、root/缺檔、空檔/錯碼、尾端截斷、
+完整前綴加半筆尾端、長度 overflow、symlink 檔案/目錄、過大檔案及 key 事件拒絕。
+真實錄影/回放與權限專項正在驗證，完成前不據此將相關 ledger 項目標為完成。
+
+六、仍須完成
+
+正式 vendor/組織/合約/grant 與播放權限模型、持久化錄影索引、獨立觀看/下載稽核，
+全協定 RDP/VNC、長連線、真正滿碟、WRITING/FINALIZING/AVAILABLE/FAILED/PURGED 狀態機，
+保留鎖/刪除/加密備份/不可變儲存與外部 anchor、強制錄影拒新及途中寫入失敗控制。
+Native 錄影參數本身不當作強制錄影保證，必要失敗對照會記錄實際效果。
+UserContext/lease 仍在記憶體，重啟後不能憑舊 lease 讀取，正式還原索引仍需另做。
+跨登入／跨身份測試是 context 隔離，不冒充已完成廠商組織隔離。
+
+官方依據：Guacamole 1.6.0，commit 0537c89cd783681b986ff8f8c4e0b97ec6873371。
+extensions/guacamole-history-recording-storage/src/main/java/org/apache/guacamole/history/
+  connection/RecordedConnectionActivityRecordSet.java；connection/HistoryConnectionRecord.java。
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-base/src/main/java/org/apache/guacamole/auth/jdbc/
+  base/ModeledActivityRecord.java；base/ModeledActivityRecordSet.java；tunnel/AbstractGuacamoleTunnelService.java。
+guacamole-common/src/main/java/org/apache/guacamole/io/ReaderGuacamoleReader.java
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/ConnectionRecord.java
+guacamole-common-js/src/main/webapp/modules/SessionRecording.js
+https://guacamole.apache.org/doc/1.6.0/gug/recording-playback.html
+https://guacamole.apache.org/doc/1.6.0/gug/configuring-guacamole.html

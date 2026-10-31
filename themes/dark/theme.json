@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "dark",
+  "name": "GuacTheme Dark",
+  "version": "1.1.0",
+  "author": "GuacTheme Manager contributors",
+  "guacamoleVersions": [
+    "1.6.0"
+  ],
+  "description": "GuacTheme dashboard with a dark default palette.",
+  "entry": "guacamole-dark.jar"
+}

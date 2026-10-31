@@ -1,0 +1,28 @@
+{
+  "guacamoleVersion": "1.6.0",
+  "name": "LibreNMS Style",
+  "namespace": "gtm-librenms",
+  "css": [
+    "css/dashboard.css",
+    "css/settings.css"
+  ],
+  "js": [
+    "js/default.js",
+    "js/model.js",
+    "js/settings.js",
+    "js/dashboard.js"
+  ],
+  "html": [
+    "html/dashboard.html",
+    "html/settings-patch.html",
+    "html/appearance-patch.html"
+  ],
+  "translations": [
+    "translations/en.json",
+    "translations/zh_TW.json"
+  ],
+  "resources": {
+    "theme-marker.json": "application/json",
+    "html/settings-chrome.html": "text/html"
+  }
+}

@@ -1,0 +1,31 @@
+程式碼發佈與實際設定排除範圍
+日期：2026-11-01（Asia/Taipei）
+專案：guacamole-theme-manager
+目標 repository：https://github.com/rutp6vmp/guacamole-theme-manager
+
+可發佈內容
+  bin、scripts、themes、modules：管理工具、主題、翻譯、原型來源。
+  tests：只含合成測試、隔離 fixture 與動態產生測試密碼的程式。
+  docs：設計、驗收、通用安裝說明與合成畫面；不含實際部署端點或密碼。
+  .github：CI／手動隔離驗收／發行流程；.gitignore、LICENSE、NOTICE、README。
+  主題 manifest、通用範例及測試服務設定屬程式所需來源，不是目前服務的實際設定。
+
+不發佈內容
+  實際 Compose、.env／.env.*、連線設定、管理狀態、帳密、金鑰、憑證私鑰。
+  PostgreSQL 資料／dump、帳號／權限／設備清單、備份、錄影、日誌及執行期檔案。
+  本機瀏覽器偏好、快取、套件依賴目錄、編譯探針與 dist 產物。
+  實際部署及 root 專用修正／備份紀錄皆在專案外，不納入 Git。
+
+下載與建置
+  Git 原始碼下載不包含 dist 預建產物；在專案根目錄執行：
+    python3 scripts/build.py
+  需要既有 Guacamole 1.6.0；scripts/install.sh 安裝的是主題管理 CLI。
+  不會自動複製原部署的帳號、設備、密碼或網路設定，也不是完整系統備份。
+  完整核心繁中 JAR 仍由部署者另行提供；本專案含 GTM 與 JDBC 補充翻譯。
+
+發佈檢查
+  git diff --cached --name-only：逐檔核對實際提交範圍。
+  核對敏感檔名、憑證／token 格式、實際端點及可疑密碼字樣；診斷只輸出檔名／行號。
+  執行 scripts/test.sh、152 項 ledger 檢查及產物 SHA256SUMS 核對。
+  目前本地修改與公開來源均不包含正式服務的 .env、資料庫或管理狀態。
+  .gitignore 只負責未追蹤檔案；未來若誤加入敏感檔案，須先停止發佈再處理，不能只補 ignore。

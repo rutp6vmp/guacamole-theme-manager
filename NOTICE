@@ -1,0 +1,12 @@
+GuacTheme Manager
+Copyright 2026 GuacTheme Manager contributors
+
+This project uses Apache Guacamole's extension interfaces and integrates with
+the Guacamole 1.6.0 frontend. Apache Guacamole is a project of the Apache Software
+Foundation, licensed under the Apache License, Version 2.0.
+
+LibreNMS is a visual/workflow reference only. No LibreNMS source code, logos,
+fonts, icons, or other assets are distributed in these themes.
+
+Apache Guacamole, Apache, and LibreNMS names identify upstream products only.
+This is an independent community project.

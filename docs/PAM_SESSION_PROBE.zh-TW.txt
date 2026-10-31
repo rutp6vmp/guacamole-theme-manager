@@ -1,0 +1,146 @@
+PAM 真實 SSH、登入綁定與工作階段控制試驗
+處理／驗證日期：2026-10-30（Asia/Taipei）
+版本：session probe 0.1.0；Guacamole 1.6.0；單一 Web／JDBC；測試專用。
+本文件保留 2026-10-30 初版範圍與測量。2026-10-31 已續作 0.2.0，原 57 項重跑通過，
+新增有效舊共享/既有 tunnel/政策故障 53 項，見 PAM_SHARING_PROBE.zh-TW.txt。
+目前來源為 0.4.0，新增獨立入口見 PAM_INGRESS_PROBE.zh-TW.txt；0.3.0 的持久化高水位、Web 重啟與儲存故障 51 項見 PAM_RESTART_PROBE.zh-TW.txt。
+0.3.0 原 session 57、sharing 53 項均再次通過；本文件以下量測仍保留初版數值。
+需求對應：G01-03、G01-04、G02-01、G02-02；F07/F08 的局部技術驗證。
+不代表正式 grant／審批／MFA 政策完成，也不取代原規劃的上線條件。
+
+一、本輪結果
+
+tests/session_acceptance.py：57 項檢查通過。
+建立獨立 OpenSSH Linux 容器，透過正式 Guacamole JavaScript Client、官方 guacd
+與 SSH 協定完成登入，傳送鍵盤指令，並在該容器檢查指令建立的檔案。
+這次有真正的 SSH shell，並非只觀察到 guacd 建立 client 或拿到 HTTP 成功碼。
+未使用正式帳號、資料庫、設備或管理密碼作為目標測試資料。
+
+已通過：
+1. 無探針時，實際 SSH 可用、管理員可加入活動 session、共享憑證可真的連入。
+2. 新探針載入後，原生 connection ID 不能直接繞過一次性啟動資格。
+3. 同帳號的另一個獨立登入、其他身份，都不能使用原登入的啟動資格；合法登入仍可用。
+4. 已消耗及過期資格被拒絕；兩個併發 transport 嘗試只有一個成功並建立一份 lease。
+5. API 拒絕來自 body 的身份欄位與非整數時長，資產由原生 READ 再次核對。
+6. 原登入重新認證後仍可使用它自己尚未消耗的資格，不轉交給別的登入。
+7. 用真正的 active ID 嘗試加入被拒絕；對真實活動 session 產生新共享憑證被拒絕。
+8. 同帳號另一個登入不能關閉這個登入的 lease；非管理員不能經原生 API 刪別人的 session。
+9. 顯式 terminate、原生管理員 DELETE、session-context revoke 與本地 deadline 都實際斷線。
+10. 重複 terminate 冪等；關閉一人的 tunnel 時，另一人的 SSH 保持可用，且再次執行新指令確認。
+11. revoke 後該登入不能建立新資格，先前尚未消耗的資格也不能再啟動。
+12. 關閉閘道後，該目標內的 nohup 背景程序仍活著；沒有把閘道斷線當成 OS 任務終止。
+13. SSH 目標沒有映射到主機 port；安裝探針只重建測試 Web，其他容器識別維持不變。
+
+本輪單次測量（本機合成資料；不是正式 SLA 或容量承諾）：
+owner terminate 請求至瀏覽器斷線：18 ms。
+原生管理員 remove 至瀏覽器斷線：47 ms。
+context revoke 請求至瀏覽器斷線：18 ms。
+本地 deadline 的 server closure 確認超過預定時間：6 ms。
+deadline 範例總時長 3500 ms；鍵盤命令確認後尚等 3026 ms 才收到斷線。
+最後一項是剩餘等待時間，不能誤讀為到期後的延遲。
+
+二、原創接入設計與可信登入綁定
+
+以獨立 namespace pam-session-probe 實作，不改原來全拒絕型 pam-gate-probe。
+每次 decorate 新建獨立 State；State 所屬的 UserContext 由 Guacamole 的認證 session
+路由取得。Resource 直接閉包持有該 State，不接受請求 body 或 header 指定 owner。
+即使兩次登入的 username 相同，State 仍不同；不以 username 當作登入 session key。
+redecorate 只在伺服器提供的 previous context 類型與 provider/subject 一致時保留 State。
+
+這證明「以伺服器認證 context 綁定資格」在此 1.6.0/JDBC 路徑可行，並沒有取得、
+儲存或印出 Guacamole bearer token 或公開 session ID，也不宣稱是跨 provider 穩定身份。
+偷走整個 bearer token 等同進入原登入，這個 POC 不是裝置綁定或 token 失竊防護。
+
+啟動資格使用 UUID 隨機識別碼，以 pam-intent-* 的暫時 connection identifier 回傳。
+State 內保存固定原生 connection reference、monotonic 到期時間、最長 lease 時長與消耗旗標。
+真正 connect 前在同一 State 原子消耗，並再次查原生 Connection；原生 ID 的 connect 直接拒絕。
+資格即使遇到連線失敗也不恢復可用，需重新申請；不把失敗重試當成重放同一資格。
+group 與 active join 先採拒絕，不透過核准一個 group 擴大為任意未來資產。
+
+當前驗證界線：只以原生使用權作底層條件，尚未有合約、grant、MFA freshness、
+policy_version、錄影義務或原子 session 容量扣除。原生權限快取的即時失效也未完成。
+本 probe 的最多 16 個暫存 intent 是測試資源上限，不能冒充正式併發 session 配額。
+
+三、工作階段與失敗語義
+
+connect 回傳真正 tunnel 後建立 Lease，再回傳 DelegatingGuacamoleTunnel 包裝。
+Lease 記錄 startedAt/deadlineAt、ACTIVE/TERMINATING/ENDED/FAILED、reason、
+terminationRequestedAt 與 terminationConfirmedAt。只有 close 完成且 tunnel 不再 open
+才寫確認時間；browser 實際斷線另由獨立的 Guacamole.Client 觀測。
+截止時間採 System.nanoTime 計算，UTC Instant 僅作記錄；單節點 ScheduledExecutor 執行 close。
+顯式 terminate、deadline、client close 及 provider shutdown 都只處理自己追蹤的 tunnel。
+native Directory.remove 另用原生管理員 API 驗證；沒有假設 getTunnel 對一般使用者可用。
+
+context revoke 只撤這一次登入，不能被描述為整個人、廠商、合約或所有節點的撤權。
+新的合法登入可以有新的 State，未來跨登入撤權必須回到權威政策／grant 資料。
+已在進行的 connect 不能透過這個介面即時取消底層握手；返回後會重查 revoke 並關閉。
+期限從 native connect 返回後起算，不能宣稱已控制握手前的全部時長。
+
+狀態與 lease 在記憶體，prototype 保留到 provider shutdown，沒有耐久恢復、正式清理／
+重試 jobs、控制平面失聯演練、owner lease/fencing 或 HA。Web 重啟後意圖不能沿用。
+這些限制仍在 G02-02、F07/F08 及 P03/P07 ledger 保留為未完成範圍。
+
+四、隔離 API（僅此 probe，不是 /pam/v1 產品 API）
+
+基底：/api/session/ext/postgresql/pam-session-probe
+POST /intents                     固定三欄：connectionId、ttlMillis、leaseMillis。
+GET  /leases                      只列該登入的 lease 摘要，不回傳密碼或 tunnel。
+POST /leases/{id}/terminate        只允許同一登入管理自己的 probe lease。
+POST /revoke                      撤銷本次登入的資格與 lease。
+
+這些端點使用現有 Guacamole session 驗證；測試請求透過 Guacamole-Token header。
+未驗完整正式 CSRF/CORS/IdP 政策；不得在正式 profile 對外提供。
+probe 額外要求 PAM_SESSION_PROBE_ENABLED=fixture-only、JDBC 與 gtm-* 合成身份；
+沒有這項明確測試設定就不發資格。這是測試隔離條件，不是正式使用者授權策略。
+
+五、可攜建置、目標與執行
+
+Java 建置（JDK 9+）：
+  python3 scripts/build_pam_probe.py --probe session \
+    --war /path/to/guacamole-1.6.0.war --output dist/poc-session
+
+或以 JRE+ECJ：加 --java /path/to/java --ecj /path/to/ecj.jar。
+目前來源建置產物：dist/poc-session/guacamole-pam-session-probe-0.4.0.jar、SHA256SUMS、build-info.json。
+以下 SHA 是初版 0.1.0 的歷史證據；0.4.0 請依目前 SHA256SUMS 與重啟試驗文件驗證。
+JAR SHA-256：86ccba8f32197f034a65da9ed329543b404bc8db9e900a89ce5fa0c928a5932d。
+只打包自己 namespace 的 Java 8 classes、manifest 與授權文件；API/JAX-RS 由官方 WAR 提供。
+
+測試：Docker、Node、Playwright 與 Chromium，沿用既有 GTM_PLAYWRIGHT_MODULE 設定。
+  python3 tests/session_acceptance.py \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+
+腳本預設會用 tests/fixtures/ssh-target 建新隨機 tag 的 OpenSSH image，結束移除自己
+建立的 tag；可用 --ssh-image 指定有 org.guactheme.test-fixture=ssh-target label 的已建測試 image。
+Docker build 首次需要 Debian 套件網路；基底與 apt 版本可能改變，須記錄當次 image/package
+並重新驗證，不視為正式鎖定的離線／跨架構發行物。
+本次目標 image ID：sha256:42996b519437a04c5bf12f17c86bbc6959c11fa12bf7d4922eb1b598d36af7a8。
+本次 openssh-server 套件：1:9.2p1-2+deb12u10（Debian bookworm）。
+手動 GitHub G01 workflow 已加入本測試；沒有建立／推送遠端 repository 或在遠端執行。
+
+目標只含合成 probe 帳號，禁止 SSH root、空白密碼與轉發；密碼以 private runtime 檔注入，
+不進 Docker layer、argv 或原始碼。SSH host key 在容器啟動時生成，沒有預建共用私鑰。
+Debian 套件安裝原本會產生 host key；已在同一 Docker RUN 層移除，測試在啟動前
+額外確認 image 沒有 ed25519/RSA 私鑰，再用 runtime 生成的金鑰完成 57 項實測。
+只有 Web 映射隨機 127.0.0.1 port；SSH/guacd/DB 只在新專案網路內。
+測試資料庫、target 檔案與程序隨自己的 fixture 清除；不操作正式 service 或 volume。
+
+六、仍需續作
+
+此節為 0.1.0 初版缺口；0.2.0 已補的項目以 PAM_SHARING_PROBE.zh-TW.txt 及最新 ledger 為準。
+
+G01-03：受控環境內已發出的有效共享憑證、跨來源同 ID、既有 tunnel read/write/reuse、
+以及依實際 balancing asset 授權仍須補；本次只對新共享憑證採拒絕。
+G01-04／P03：把 context-bound intent 接上真正 grant、MFA 證據、原子容量及持久化政策。
+G02：其餘協定、節點失聯、Web restart、延遲撤銷、worker/fencing 與實際容量量測。
+P01/G03：真實錄影、回放、權限與保存；本次實際 SSH 並不代表錄影通過。
+
+官方來源與 1.6.0 路徑：
+https://guacamole.apache.org/doc/1.6.0/gug/administration.html
+https://guacamole.apache.org/doc/1.6.0/gug/guacamole-ext.html
+commit 0537c89cd783681b986ff8f8c4e0b97ec6873371：
+guacamole/src/main/java/org/apache/guacamole/rest/session/SessionResource.java
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/AuthenticationProvider.java
+guacamole-common/src/main/java/org/apache/guacamole/net/DelegatingGuacamoleTunnel.java
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-base/src/main/java/
+  org/apache/guacamole/auth/jdbc/activeconnection/ActiveConnectionDirectory.java
+  org/apache/guacamole/auth/jdbc/activeconnection/TrackedActiveConnection.java

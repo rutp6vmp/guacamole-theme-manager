@@ -1,0 +1,6 @@
+{
+  "guacamoleVersion": "1.6.0",
+  "name": "GuacTheme JDBC Traditional Chinese",
+  "namespace": "guactheme-jdbc-zh-tw",
+  "translations": ["translations/zh_TW.json"]
+}

@@ -1,0 +1,127 @@
+PAM 政策高水位持久化與 Web 重啟驗證
+處理日期：2026-10-31（Asia/Taipei）
+版本：session probe 0.3.0；Guacamole 1.6.0；單 Web/JDBC/SSH；僅隔離試驗。
+目前來源已續作 0.4.0，獨立入口見 PAM_INGRESS_PROBE.zh-TW.txt；下列舊版實測保留供追溯。
+對應：G02-02、G04-02、F07-03、F08-03、X22-03、P00、F/J/K。
+本文件接續 PAM_SESSION_PROBE.zh-TW.txt 與 PAM_SHARING_PROBE.zh-TW.txt。
+後續同版 DB pause／guacd 失聯 32 項驗證見 PAM_OUTAGE_PROBE.zh-TW.txt；本文件保留重啟批次結果。
+
+一、目的與邊界
+
+0.2.0 只在記憶體保存已接受的 policy generation，重啟後無法辨識舊政策。
+0.3.0 增加獨立 checkpoint，驗證 Web 重啟或 SIGKILL 之後，保留的高水位能拒絕
+較低 generation。這是 P00 的 Linux 本機檔案系統原型，不是正式政策資料庫或 HA。
+登入、intent、lease 仍只存記憶體；重啟後一律重新登入及申請，不復活舊 handle。
+
+二、原創實作與儲存協定
+
+程式：modules/guacamole-adapter-1.6/session-probe/src/main/java/
+  org/guactheme/pam/sessionprobe/PolicyCheckpointStore.java
+  org/guactheme/pam/sessionprobe/SessionProbeProvider.java
+
+設定 PAM_SESSION_PROBE_POLICY_FILE 時，必須另外設定 PAM_SESSION_PROBE_STATE_DIR。
+前者掛載唯讀政策目錄，後者掛載獨立可寫狀態目錄；路徑由部署設定提供，不硬編碼主機位置。
+未設定政策檔的原 session suite 仍使用禁止分享的基線，沒有宣稱該模式具持久化政策。
+PAM_SESSION_PROBE_ENABLED=fixture-only 及合成 gtm-* JDBC 身份的限制維持不變。
+
+狀態目錄權限必須恰為 0700，policy.lock 與 policy.checkpoint 必須恰為 0600；
+擁有者必須是 Web runtime 帳號。要求一般檔案並拒絕符號連結路徑，不自動修復權限。
+固定 lock 檔使用 Java FileChannel.tryLock 的 POSIX byte-range 排他鎖；鎖被占用時
+不等待鎖、不接受新啟動。這是單 writer 防重疊，不是跨節點 fencing。
+
+checkpoint 格式（LF）：
+schemaVersion=1
+generation=2
+mode=enforce
+sha256=<前三行完整 bytes 的 SHA-256>
+
+generation 為 1～999999999；mode 僅 enforce 或 sharing-control。
+checksum 偵測資料損毀，沒有 MAC、數位簽章或主機管理員防竄改能力。
+每次政策查核都先驗證既有 checkpoint，再比較候選政策；較低版本、同版不同 mode、
+不支援 schema、超長或損毀內容均拒絕。運行期間也拒絕磁碟 checkpoint 倒退。
+
+較高版本寫入流程：同目錄 CREATE_NEW 私有暫存檔 → 完整寫入 → fsync 檔案 →
+atomic move 取代 checkpoint → fsync 目錄 → 回報 healthy。原子移動或同步失敗不回報成功。
+若 rename 已成功但 fsync 報錯，磁碟可能已是較高版；後續仍需成功同步才恢復 healthy，
+不會為了修復可用性而自動降低版本。
+
+檔案缺失、內容錯誤、權限錯誤、鎖衝突或不可寫時，拒絕新的 intent/connect。
+已追蹤的分享由既有監看機制關閉；primary 仍受獨立本地 lease deadline 限制。
+checkpoint 不含使用者、密碼、login token、分享 key、tunnel bearer 或連線參數。
+
+三、初始化與人工復原界線
+
+scripts/init_probe_policy_state.py 僅初始化停止中的新原型，不操作 Docker 或正式資料庫。
+需要已知可信的 canonical 政策；只接受新建或空白、操作者擁有且 0700 的目錄：
+  python3 scripts/init_probe_policy_state.py --state-dir /private/new-probe-state \
+    --policy-file /private/known-good-policy.conf
+
+之後由測試 fixture 將目錄與兩檔擁有者交給實際 Web UID/GID；不假設固定主機帳號。
+程式沒有 force/reset 選項。非空目錄與中斷後的不完整初始化均拒絕，不能重新初始化
+來清除高水位。runtime 不會把缺檔視為第一次安裝。
+
+既有狀態損毀時，停止原型、保留現場，核對可信備份與最後接受的 generation，再人工
+復原；不能用目前可能已回退的政策檔自動重建。真實產品需額外的備份、授權與稽核流程。
+測試中寫回 snapshot 只是在新建 fixture 注入及修復故障，不是對外復原 API。
+
+四、重現方式與測試隔離
+
+  python3 scripts/build_pam_probe.py --probe session --war /path/to/guacamole-1.6.0.war
+  python3 tests/session_acceptance.py --suite restart \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+
+需要 Docker、Node 與 Playwright；同既有 session suite，可透過 GTM_PLAYWRIGHT_MODULE
+指定瀏覽器模組。SSH image 預設自行建置及刪除，只含測試標記，啟動時生成 host keys。
+測試自行產生隨機 Compose project、localhost port、tmpfs PostgreSQL、合成帳密與 SSH。
+僅重建該 project 的 Web，檢查其 db/guacd/ssh 容器識別維持原值；不接受正式部署作目標。
+
+tests/probe_state_fixture.py 查詢官方 Web image 的 runtime UID/GID，建立並交付私有目錄；
+一般 Docker 使用者透過只掛該測試目錄的 utility container 讀寫故障 fixture，結束時還原
+目錄擁有者讓外層清理。POSIX 鎖案例需 root 或測試操作者與 Web 同 UID，報告會明列
+byteRangeLockTested；未執行時不能宣稱該案例通過。
+報告只輸出檢查名稱、耗時、產物 hash 與測試 image metadata，不輸出秘密或原始回應。
+手動 GitHub workflow 已加入 restart suite；本機執行紀錄與 CI 遠端結果應分開看待。
+
+五、實測紀錄
+
+2026-10-31：restart suite 共 51 項通過，byteRangeLockTested=true。
+包含 generation 2/3 在正常重建與 SIGKILL 後仍保留、較低政策拒新啟動，舊 HTTP bearer
+回 404、舊登入回 403、新登入不能使用舊 pending intent、不重建舊 lease。
+亦包含 checkpoint 損毀/缺失、0700→0777 權限錯誤、POSIX 鎖占用、唯讀 state mount
+均拒新，以及修復可寫掛載後 generation 5 落盤、新 SSH session 實際執行指令。
+各次重建均確認其他三個 fixture 容器維持識別原值。
+
+單次本機 Web readiness 觀測（從測試重建開始至 doctor 通過，非 SLA）：
+正常重建：16628 ms；SIGKILL＋重建：15880 ms。
+唯讀掛載重建：12253 ms；恢復可寫重建：12393 ms。
+唯讀測試先停止舊 writer 再發布 generation 5，避免舊 writer 正常落盤而造成錯誤歸因。
+第一次試跑因此測試時序問題未通過；修正 fixture 後重跑完整 51 項通過，未放寬檢查。
+
+JAR SHA-256：afa4a80ea6380ae127cce961f27de80d2d1f74a49cbe3b32e3d94de5b020b6b3。
+使用官方 WAR SHA-256：b41ceb1e2df010b54db563e0b00edb8d5fe9f073c6168462e4c978df0fc6e716。
+本機編譯器 ECJ 3.26.0，Java class major 52，只有自有 namespace；未打包 Guacamole API。
+不同編譯器應核對該次 build-info 與 SHA256SUMS，不假設 javac 和 ECJ 的 JAR bytes 相同。
+SSH fixture：sha256:8d89a4420ab768bdf6c33c8e37ccc339b937bc03dc155141aa184f573bd6f65f。
+openssh-server 1:9.2p1-2+deb12u10；無預建 host key，runtime 生成。
+初始化專項 6 項通過：私有格式、拒重置、無效政策不建狀態、symlink/權限拒絕及競爭單勝。
+本輪來源檢查：59 項 Python、6 項前端模型及 JavaScript 語法均通過。
+同版 0.3.0 sharing suite 53 項回歸通過；本次收緊至共享關閉 132ms、父 revoke 關父子
+29ms、晚到 HTTP write 回 404；同為單次本機觀測，不取代 0.2.0 的歷史測量。
+同版原 session suite 57 項回歸通過：owner terminate 34ms、native remove 105ms、
+context revoke 23ms、deadline 確認超時 11ms，亦非 SLA。
+原 gate 21+5、TOTP 46 本次未重跑，仍為前批歷史證據。
+完整 1.2.0 ZIP 可重現建置；解壓後 ledger 與 59 項 Python 均通過，包含本輪新增來源、
+工具及測試。probe 執行 JAR 與 SHA256SUMS 位於獨立的 dist/poc-session，不混入靜態主題。
+所有本輪 fixture 容器與自建 SSH image tag 已清理；現有 Guacamole localhost HTTP 200。
+
+六、後續代理仍需完成的項目
+
+1. 正式 policy_version、grant/撤銷、MFA freshness 與 session 資料的權威持久化及還原對帳。
+2. DB/IdP/控制服務與 worker 失聯、網路分割、時鐘異常、硬體斷電及 NFS 的故障矩陣。
+3. 多 Web node/owner lease/heartbeat/fencing；此 checkpoint 不能代替 HA 協調。
+4. RDP/VNC、錄影、balancing 實選資產、其他身份來源的接入及否定測試。
+5. gate JAR 遺失時的外部入口封鎖與 bootstrap 檢查；provider 不載入仍是獨立缺口。
+
+主機管理員同時回退政策與 checkpoint 的情況不在此信任邊界內。
+本機 readiness 與 tunnel 中斷耗時不構成 SLA；閘道斷線不保證目標 OS 登出或背景程序終止。
+本輪不啟用正式外包入口，不變更正式 CLI、Compose、帳號、擴充、MFA 或資料庫。

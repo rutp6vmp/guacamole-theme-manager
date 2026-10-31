@@ -1,0 +1,132 @@
+PAM 獨立啟動檢查、受保護入口與安全持續性驗證
+處理日期：2026-10-31（Asia/Taipei）
+版本：session probe 0.4.0；Guacamole 1.6.0；單 Web/JDBC/SSH；localhost 隔離試驗。
+對應：F04-01/02、X19-03/04/06、X22-03、G04-01/02、P00、J/L。
+本輪延續原規劃「模組遺失時不能靠該模組保護自己」的要求。
+
+一、實作方向與信任邊界
+
+1. bootstrap.sh 是安全 JAR 之外的獨立檢查，先確認明確的 fixture-only opt-in、
+   操作者釘選的 SHA-256、一般非 symlink 模組檔，再 exec 原版官方 entrypoint。
+   缺檔、雜湊改變、缺 pin 或任意啟動命令都以 exit 78 拒絕，不啟動 Tomcat。
+   這是本原型的安裝前提檢查，不是數位簽章或可信發行者認證。
+
+2. NGINX 位於唯一 published port，Web/DB/guacd/SSH 都不 publish host port。
+   每個新 HTTP 請求在轉送前，以 auth_request 查詢同一個私有 Web 的 provider readiness。
+   靜態首頁、登入 POST、REST、HTTP tunnel 與 WebSocket Upgrade 都走同一個 location。
+   readiness 不存在、503、連不上、timeout 或其他非預期回應，均不轉送原始請求。
+   不快取成功的 readiness，不接受瀏覽器 header 當作模組、身份或 MFA 證據。
+
+3. provider 的公開資源 GET /guacamole/api/ext/pam-session-probe/ingress-ready
+   僅在 fixture-only、已配置政策檔且 durable policy/checkpoint 健康時回空白 204，否則 503。
+   沒有 username、token、檔案路徑、SHA、generation 或完整連線參數回應。
+   它只證明此 Web 目前載入提供者並能讀取原型政策，不是 grant/身份/MFA/DB 健康證明。
+
+4. 伺服器 connect gate 保留既有的身份 context、一次性 intent、原生權限與 policy 重查。
+   入口檢查不代替這些授權；健康的入口也不代表任意使用者可以直接連受控資產。
+   原型只允許合成 gtm-* JDBC 身份，不能當作正式 vendor_access_enabled 功能。
+
+使用者尚無正式網域/HTTPS；本輪沒有對外啟用、改正式 Compose/CLI/帳號/登入或重建正式容器。
+
+二、原創來源與設定
+
+modules/guacamole-adapter-1.6/ingress-probe/bootstrap.sh
+modules/guacamole-adapter-1.6/ingress-probe/nginx.conf
+modules/guacamole-adapter-1.6/session-probe/src/main/java/
+  org/guactheme/pam/sessionprobe/SessionProbeProvider.java
+
+bootstrap 使用 PAM_SESSION_PROBE_REQUIRED_SHA256 取得可信部署設定提供的 64 位小寫 hex。
+預設讀 /etc/guacamole/extensions/guacamole-pam-session-probe.jar；測試或不同安裝可用
+PAM_SESSION_PROBE_EXTENSIONS_DIR 指定絕對路徑。該設定由部署者提供，不從 HTTP 讀取。
+--check-only 僅核對停止中的檔案，不啟動服務；runtime 只接受官方 entrypoint 一個命令。
+無 force/bypass、自動換 pin 或自動下載／替換安全 JAR 的功能。
+Compose 明確提供 entrypoint 及 command，保留官方 /opt/guacamole/bin/entrypoint.sh 的完整初始化。
+
+NGINX fixture 使用 nginx:1.28.0-alpine；不是系統全域安裝。
+nginx.conf 以 Docker DNS 解析單一 web:8080，沒有硬編碼主機 IP、正式網域或公開埠。
+valid=1s 讓 Web 重建後重新解析；這不是多實例負載平衡或跨節點健康證明。
+內部 auth subrequest 不轉送 body、Cookie、Authorization 或 Guacamole-Token。
+入口無 access log，error log 不記錄一般請求，以免原生 tunnel query 帶的 bearer token 落盤。
+封鎖回應為固定的 503 與 no-store，不把原生錯誤、路徑或秘密回給入口使用者。
+
+已 Upgrade 的 WebSocket 不再是新的 HTTP 請求，NGINX 不會逐 frame 重新 auth_request。
+已連 primary 的有界期限仍由 provider 本地 lease 執行；不能把政策變壞說成代理立即中斷所有活動 tunnel。
+模組檔在磁碟被移除時，已載入的原本程式可能仍在記憶體；下次啟動會被 bootstrap 拒絕。
+
+三、實際驗收與恢復方式
+
+tests/ingress_acceptance.py 沿用 session fixture 的隨機 project、合成密碼與真實 OpenSSH。
+先將原 localhost port 移交 entry，取消 Web publish，再建立 readonly bootstrap/config 掛載、
+唯讀政策目錄及獨立私有 checkpoint。所有操作只使用該新 project 的完整 Compose 清單。
+不接受正式環境路徑作目標，也不因故障刪除其他擴充或修改 WAR。
+
+驗證情境：
+1. 健康入口可登入，HTTP/WS 都執行真實 SSH；runtime 沒有 Web/DB/guacd/SSH bypass publish。
+2. 必要政策檔缺失，首頁、登入 POST、REST、HTTP/WS 新 tunnel 皆封鎖，偽造 header 無效。
+3. 既有 Upgrade 的 WebSocket 最後仍由本地 lease 關閉；恢復較高 generation 後入口恢復。
+4. 安全模組缺失及內容被改，bootstrap 都阻止官方 entrypoint，入口保持封鎖。
+5. 私有負面對照刻意省略 bootstrap 及 JAR，原生 Web 實際正常啟動、登入並可連 SSH；
+   同一時刻 entry 仍封鎖原生登入、REST 與兩種 tunnel，證明不是因 Web 沒起來才拒絕。
+6. 還原釘選的 JAR、bootstrap 與有效政策，重新登入和 fresh intent 才能經 entry 連 SSH。
+7. 將同一完整 Compose 清單與 module pin 交給 protect-deployment；主題操作後繼續核對入口保護。
+
+管理者透過 Docker 私有網路直接操作後端是高信任的測試／救援通道，不是外包入口。
+本機負面對照讀取隨機 fixture 的 bridge IP，因此這套測試目前以 Linux Docker bridge 驗證。
+主機／Docker 管理員有權修改掛載、pin 或網路，不在此原型的防竄改邊界。
+
+四、重現方式與測試紀錄
+
+  python3 scripts/build_pam_probe.py --probe session --war /path/to/guacamole-1.6.0.war
+  docker pull nginx:1.28.0-alpine
+  python3 tests/session_acceptance.py --suite ingress \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+
+需要 Docker、Node、Playwright；GTM_PLAYWRIGHT_MODULE 同其他 session suite。
+SSH image 預設自行建立及清理，或使用標記正確且無預建金鑰的測試 image。
+正式／外包環境不能照此 localhost HTTP 原型直接啟用。
+
+首輪 43 項通過；補齊主題操作後完整 64 項通過：install/switch/reset/restore 每次都
+保留 bootstrap 與 JAR，fresh intent 經入口執行真實 SSH，entry/DB/guacd/SSH 容器不被重建。
+protect-deployment 採納完整 Compose 與現有 JAR pin 時不重建 Web。
+首個擴充試跑遇到 private browser operation，未取得足夠訊息判定原因；加上固定的階段
+診斷後完整重跑 64 項通過。最後複驗另外在每次主題操作後建立新瀏覽器，直接載入當前
+前端並用新登入連線，避免依賴前次頁面的測試狀態；此最後版本亦完整 64 項通過。
+新增 bootstrap 7 項負面／校驗測試；來源共 72 項 Python、6 項前端模型與 JS 語法通過。
+0.4.0 JAR SHA-256：b464bb6cb6949262d93ca6ff989b993bc9b6a1e7e2db67a9eb9afc2b230d3bba。
+官方 WAR SHA-256：b41ceb1e2df010b54db563e0b00edb8d5fe9f073c6168462e4c978df0fc6e716。
+NGINX image ID：sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284。
+SSH image ID：sha256:e20def4ae06acb0a1e22ce417f185826c87a49b0dfc4c8f699b2cbefd46daed1。
+openssh-server：1:9.2p1-2+deb12u10；無預建 host key，runtime 生成。
+
+同版 0.4.0 已完成的最後回歸（單次本機觀測，非 SLA）：
+session 57 項通過：owner terminate 37ms、native remove 55ms、context revoke 37ms、deadline 確認超時 12ms。
+sharing 53 項通過：分享收緊至關閉 157ms、父 revoke 關父子 57ms、晚到 HTTP write 404。
+restart 51 項通過：正常重建 readiness 16086ms、SIGKILL＋重建 12478ms、
+唯讀 state 重建 11859ms、恢復可寫 12529ms。byte-range lock、checkpoint 與舊 handle 檢查保留。
+outage 32 項通過：DB pending connect 拒絕 5783ms（512）、issue 拒絕 2039ms（HTTP500）、
+deadline 確認超時 1155ms、guacd kill 後斷線 435ms、native connect timeout 15235ms（514）。
+上述皆為同一 0.4.0 JAR 的最後回歸結果；ingress 64 項最後版本完整通過。
+前批 gate 21+5、TOTP 46 與 UI/CRUD 132 仍是歷史證據，本輪未重跑。
+完整 1.2.0 ZIP 解壓後 72 項 Python 與 152 項 ledger 檢查通過，包含新 entry/bootstrap 來源。
+0.4.0 JAR 同一編譯器重建 hash 相同，class major 52，只包含自有 namespace 與授權文件。
+舊 0.3.0 JAR 已核對外部備份後移出當前產物目錄，保留歷史證據，不與現行 SHA256SUMS 混用。
+本輪所有新建 fixture 容器與自建 SSH image tag 已清理；共用官方 image 保留快取。
+既有 Guacamole localhost HTTP 200；正式 Compose/CLI/帳號/擴充未改，沒有正式容器重建。
+
+五、保留缺口與後續方向
+
+G04 保留部分通過：尚無正式 external_enforced profile、HTTPS、可信代理政策及外包最低能力總檢查。
+模組 availability 不代表 MFA freshness、正式 grant/錄影/IdP/DB/worker 都健康。
+readiness 與轉送要到同一 Web；HA/rollout/多 backend 場景需 instance 綁定或獨立證明。
+不能把此樣板直接擴成 round-robin，讓 A 的健康替 B 的缺模組放行。
+仍需正式部署／升級／pin 變更程序、TOTP/錄影/所有工具的完整安全連續性與多協定驗收。
+所有觀測僅為本機單次驗證，不構成 SLA；閘道斷線仍不保證目標 OS 登出或背景程序終止。
+
+官方來源：Guacamole tag 1.6.0，commit 0537c89cd783681b986ff8f8c4e0b97ec6873371：
+guacamole-ext/src/main/java/org/apache/guacamole/net/auth/AuthenticationProvider.java
+guacamole/src/main/java/org/apache/guacamole/rest/extension/ExtensionRESTService.java
+guacamole-docker/bin/entrypoint.sh；根目錄 Dockerfile（官方 CMD）。
+NGINX auth_request 的成功/拒絕/錯誤規則：
+https://nginx.org/en/docs/http/ngx_http_auth_request_module.html
+WebSocket 的 HTTP/1.1 Upgrade/Connection 轉送規則：
+https://nginx.org/en/docs/http/websocket.html

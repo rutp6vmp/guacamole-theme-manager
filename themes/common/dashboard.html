@@ -1,0 +1,76 @@
+<meta name="before-children" content=".home-view">
+<section class="gtm" ng-controller="GuacThemeController as tm" data-palette="{{tm.palette}}" ng-cloak>
+    <div class="gtm-native-switch" ng-if="tm.palette === 'default' || tm.error">
+        <span>GuacTheme Manager</span>
+        <label>{{'GTM.PALETTE' | translate}}
+            <select ng-model="tm.palette" ng-change="tm.applyPalette()">
+                <option value="librenms">LibreNMS Style</option><option value="dark">Dark</option>
+                <option value="light">Light</option><option value="default">{{'GTM.DEFAULT' | translate}}</option>
+            </select>
+        </label>
+        <span ng-if="tm.error" role="alert">{{'GTM.FALLBACK' | translate}}</span>
+    </div>
+    <div class="gtm-shell" ng-if="tm.loaded && tm.palette !== 'default' && !tm.error">
+        <aside class="gtm-sidebar" ng-class="{'gtm-open':tm.mobileOpen}">
+            <a class="gtm-brand" href="#/" ng-click="tm.setView('dashboard')"><span class="gtm-mark" aria-hidden="true">G</span><span>GuacTheme<small>CONNECTION MANAGER</small></span></a>
+            <div class="gtm-nav-label">{{'GTM.WORKSPACE' | translate}}</div>
+            <nav aria-label="{{'GTM.NAVIGATION' | translate}}">
+                <button ng-click="tm.setView('dashboard')" ng-class="{selected:tm.view==='dashboard'}"><span aria-hidden="true">▦</span>{{'GTM.DASHBOARD' | translate}}</button>
+                <button ng-click="tm.setView('devices')" ng-class="{selected:tm.view==='devices' && !tm.category}"><span aria-hidden="true">▤</span>{{'GTM.ALL' | translate}}<b>{{tm.rows.length}}</b></button>
+                <button ng-if="tm.count('windows')" ng-click="tm.setView('devices','windows')" ng-class="{selected:tm.category==='windows'}"><span aria-hidden="true">⊞</span>{{'GTM.WINDOWS' | translate}}</button>
+                <button ng-if="tm.count('linux')" ng-click="tm.setView('devices','linux')" ng-class="{selected:tm.category==='linux'}"><span aria-hidden="true">›_</span>{{'GTM.LINUX' | translate}}</button>
+                <button ng-if="tm.count('network')" ng-click="tm.setView('devices','network')" ng-class="{selected:tm.category==='network'}"><span aria-hidden="true">⌘</span>{{'GTM.NETWORK' | translate}}</button>
+                <button ng-if="tm.groups.length" ng-click="tm.setView('groups')" ng-class="{selected:tm.view==='groups'}"><span aria-hidden="true">▱</span>{{'GTM.GROUPS' | translate}}</button>
+                <button ng-click="tm.setView('favorites')" ng-class="{selected:tm.view==='favorites'}"><span aria-hidden="true">☆</span>{{'GTM.FAVORITES' | translate}}</button>
+                <a ng-repeat="page in tm.history" ng-href="#{{page.url}}"><span aria-hidden="true">◷</span>{{'GTM.HISTORY' | translate}}<small>{{tm.sourceLabel(page)}}</small></a>
+            </nav>
+            <div class="gtm-nav-label" ng-if="tm.settings.length">{{'GTM.SETTINGS' | translate}}</div>
+            <nav ng-if="tm.settings.length" aria-label="{{'GTM.SETTINGS' | translate}}">
+                <a ng-repeat="page in tm.settings" ng-href="#{{page.url}}"><span aria-hidden="true">⚙</span>{{tm.pageLabel(page) | translate}}<small>{{tm.sourceLabel(page)}}</small></a>
+            </nav>
+            <div class="gtm-sidebar-footer"><span class="gtm-dot" aria-hidden="true"></span>Apache Guacamole <b>1.6.0</b><small>GuacTheme Manager · v1.1.0</small></div>
+        </aside>
+        <div class="gtm-workspace">
+            <header class="gtm-topbar">
+                <button class="gtm-menu-toggle" ng-click="tm.mobileOpen=!tm.mobileOpen" aria-label="{{'GTM.NAVIGATION' | translate}}" aria-expanded="{{tm.mobileOpen}}">☰</button>
+                <span class="gtm-topbar-title">{{'GTM.CONSOLE' | translate}}</span>
+                <div class="gtm-tools"><label class="gtm-palette-label"><span>{{'GTM.PALETTE' | translate}}</span>
+                    <select ng-model="tm.palette" ng-change="tm.applyPalette()" aria-label="{{'GTM.PALETTE' | translate}}">
+                        <option value="librenms">LibreNMS</option><option value="dark">Dark</option><option value="light">Light</option><option value="default">{{'GTM.DEFAULT' | translate}}</option>
+                    </select></label><guac-user-menu></guac-user-menu></div>
+            </header>
+            <main class="gtm-content">
+                <div class="gtm-breadcrumb">Guacamole <span>/</span> {{'GTM.WORKSPACE' | translate}}</div>
+                <div class="gtm-page-heading"><div><h1>{{(tm.view==='favorites' ? 'GTM.FAVORITES' : tm.view==='groups' ? 'GTM.GROUPS' : tm.view==='dashboard' ? 'GTM.DASHBOARD' : 'GTM.ALL') | translate}}</h1><p>{{'GTM.SUBTITLE' | translate}}</p></div><span class="gtm-version">{{tm.username}}</span></div>
+                <div class="gtm-stats" ng-if="tm.view==='dashboard'">
+                    <button ng-click="tm.setView('devices')"><span>{{'GTM.ACCESSIBLE' | translate}}</span><strong>{{tm.rows.length}}</strong><small>{{'GTM.AVAILABLE' | translate}}</small></button>
+                    <button ng-click="tm.setView('devices','windows')"><span>{{'GTM.WINDOWS' | translate}}</span><strong>{{tm.count('windows')}}</strong><small>RDP</small></button>
+                    <button ng-click="tm.setView('devices','linux')"><span>{{'GTM.LINUX' | translate}}</span><strong>{{tm.count('linux')}}</strong><small>SSH</small></button>
+                    <button ng-click="tm.setView('favorites')"><span>{{'GTM.FAVORITES' | translate}}</span><strong>{{(tm.rows | filter:tm.isFavorite).length}}</strong><small>{{'GTM.LOCAL_ONLY' | translate}}</small></button>
+                </div>
+                <div class="gtm-notice" ng-if="tm.storageError" role="status">{{'GTM.STORAGE_ERROR' | translate}}</div>
+                <section class="gtm-card">
+                    <div class="gtm-card-title"><h2>{{'GTM.DEVICES' | translate}}</h2><span>{{tm.result.length}} {{'GTM.RESULTS' | translate}}</span></div>
+                    <form class="gtm-filters" ng-submit="tm.update()" role="search">
+                        <label class="gtm-search"><span aria-hidden="true">⌕</span><input type="search" ng-model="tm.query" ng-change="tm.update()" placeholder="{{'GTM.SEARCH' | translate}}" aria-label="{{'GTM.SEARCH' | translate}}"></label>
+                        <label><span class="gtm-sr">{{'GTM.CATEGORY' | translate}}</span><select ng-model="tm.category" ng-change="tm.update()"><option value="">{{'GTM.ALL_CATEGORIES' | translate}}</option><option value="windows">{{'GTM.WINDOWS' | translate}}</option><option value="linux">{{'GTM.LINUX' | translate}}</option><option value="network">{{'GTM.NETWORK' | translate}}</option><option value="other">{{'GTM.OTHER' | translate}}</option></select></label>
+                        <label><span class="gtm-sr">{{'GTM.GROUP' | translate}}</span><select ng-model="tm.group" ng-change="tm.update()" ng-options="g.key as (g.source+' / '+g.name) for g in tm.groups"><option value="">{{'GTM.ALL_GROUPS' | translate}}</option></select></label>
+                    </form>
+                    <p class="gtm-hint" ng-if="tm.category==='network'">{{'GTM.NETWORK_HINT' | translate}}</p>
+                    <div class="gtm-table-scroll"><table class="gtm-table">
+                        <thead><tr><th><span class="gtm-sr">{{'GTM.FAVORITES' | translate}}</span></th><th scope="col">{{'GTM.NAME' | translate}}</th><th scope="col">{{'GTM.HOST' | translate}}</th><th scope="col">{{'GTM.CATEGORY' | translate}}</th><th scope="col">{{'GTM.PROTOCOL' | translate}}</th><th scope="col">{{'GTM.GROUP' | translate}}</th><th scope="col">{{'GTM.ACTION' | translate}}</th></tr></thead>
+                        <tbody><tr ng-repeat="row in tm.visible track by row.key">
+                            <td><button class="gtm-star" ng-class="{saved:tm.isFavorite(row)}" ng-click="tm.favorite(row)" aria-label="{{'GTM.FAVORITES' | translate}}: {{row.name}}" aria-pressed="{{tm.isFavorite(row)}}">{{tm.isFavorite(row)?'★':'☆'}}</button></td>
+                            <td><a class="gtm-device-name" ng-href="{{row.href}}">{{row.name}}</a><small class="gtm-source">{{row.source}}</small></td>
+                            <td class="gtm-host"><span ng-if="row.hostState==='shown'">{{row.hostname}}</span><button class="gtm-text-button" ng-if="tm.canReadHost(row) && row.hostState==='hidden'" ng-click="tm.readHost(row)">{{'GTM.REVEAL_HOST' | translate}}</button><span ng-if="row.hostState==='loading'">…</span><span ng-if="!tm.canReadHost(row) || row.hostState==='denied'">{{'GTM.RESTRICTED' | translate}}</span><span ng-if="row.hostState==='empty'">—</span></td>
+                            <td>{{('GTM.'+row.category.toUpperCase()) | translate}}</td><td><span class="gtm-protocol">{{row.protocol}}</span></td><td>{{row.group || ('GTM.ROOT' | translate)}}</td>
+                            <td><a class="gtm-connect" ng-href="{{row.href}}">{{'GTM.CONNECT' | translate}} <span aria-hidden="true">↗</span></a></td>
+                        </tr><tr ng-if="!tm.result.length"><td colspan="7" class="gtm-empty">{{'GTM.EMPTY' | translate}}</td></tr></tbody>
+                    </table></div>
+                    <div class="gtm-pagination"><span>{{tm.page+1}} / {{tm.pages}}</span><div><button ng-disabled="tm.page===0" ng-click="tm.turn(-1)">{{'GTM.PREVIOUS' | translate}}</button><button ng-disabled="tm.page+1>=tm.pages" ng-click="tm.turn(1)">{{'GTM.NEXT' | translate}}</button></div></div>
+                </section>
+                <p class="gtm-footnote">{{'GTM.DATA_NOTE' | translate}}</p>
+            </main>
+        </div>
+    </div>
+</section>

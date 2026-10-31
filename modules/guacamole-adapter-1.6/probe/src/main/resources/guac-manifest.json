@@ -1,0 +1,6 @@
+{
+  "guacamoleVersion": "1.6.0",
+  "name": "PAM Gate Probe (DENIES CONNECTIONS - TEST ONLY)",
+  "namespace": "pam-gate-probe",
+  "authProviders": ["org.guactheme.pam.probe.GateProbeProvider"]
+}

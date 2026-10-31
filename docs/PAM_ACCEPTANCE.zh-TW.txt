@@ -1,0 +1,1902 @@
+PAM 規劃驗收與進度管理表
+表單版本：1.0
+規劃 SHA-256：4f767752d1d48b105115fed763a01ab07d37a4458df3f2bfddc4ab84dcd50c52
+依據：docs/PAM_SYSTEM_PLAN.zh-TW.txt（設計草案 0.1，第 00～28 節）
+建立日期：2026-10-30（Asia/Taipei）
+最近核對／更新日期：2026-11-01（Asia/Taipei）
+基線：Guacamole 1.6.0；CLI 1.2.0；主題 1.1.0。
+負責：開發代理維護；人工驗收／正式上線簽核：未簽核。
+
+一、填表規則
+1. 此表為逐項驗收 ledger；產品設計仍以原計畫為依據。
+2. 狀態：未開始／設計完成／實作中／待驗證／部分通過／隔離通過／待確認。
+   設計完成只代表規格；隔離通過只代表該列明定範圍，不代表正式上線。
+3. 核對日期是本輪閱讀程式與證據日期；處理日期是實際有設計／程式／測試處理的日期。
+   未開始項目的處理、驗證、完成日期留「—」，不能把閱讀日期當作功能完成日期。
+4. 已有通過日期取自同日上批實作紀錄與本輪來源核對；未重跑者明列為歷史證據。
+   當次新測試需在本表下方事件紀錄寫命令、結果、日期、環境及限制。
+5. 需求若部分落實，列出缺口；不得因主題頁存在或模組載入就勾選完整 PAM 功能。
+6. 日期皆採 YYYY-MM-DD／Asia/Taipei；不填未實際執行的預計完成日期。
+7. 父項 P/G/A-L 與子項有重疊，不將列數換算為產品完成百分比。
+8. 每完成一批，更新該列狀態、處理／驗證／完成日期、證據、缺口及事件紀錄。
+9. 任何正式上線都需獨立簽核；本輪不變更正式入口、帳號、資料庫或 MFA。
+
+二、核對範圍
+00～04：B00；05～16：F01～F12；17～22：X17～X22；23：G01～G05；
+24：P00～P07；25：R25；26：A～L；27：D01～D10；28：R28。
+每列規劃節號可回原文核對完整細節；多條件項目必須全部滿足才可完成。
+
+三、狀態統計（更新日期 2026-11-01；依各列計算）
+共 152 項；待確認 10，未開始 72，設計完成 8，部分通過 47，隔離通過 15。
+
+[B00-01]
+規劃節：00/01
+驗收要求：原創範圍、遠端協定與 PAM 職責分離、帳號三層模型有設計依據
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_SYSTEM_PLAN.zh-TW.txt
+缺口／下一步：以後續領域程式驗證，尚未具備完整 PAM
+
+[B00-02]
+規劃節：00/02
+驗收要求：保留正式帳號、權限、連線、翻譯與原有資料；不改 WAR
+狀態：部分通過
+核對日期：2026-11-01
+最後處理日期：2026-11-01
+最近驗證日期：2026-11-01
+範圍內完成日期：—
+證據：docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt; docs/JDBC_TRANSLATION.zh-TW.txt; docs/RDP_CONNECTION_REPAIR.zh-TW.txt
+缺口／下一步：既有工具已驗證；本輪另依使用者要求修正指定 RDP 連線設定，未變更帳密／權限；指定 RDP 已獲使用者連線成功確認，其他完整協定驗收仍待完成，未來安全部署仍須逐次比對
+
+[B00-03]
+規劃節：02
+驗收要求：單一安裝、多廠商；外包正式入口具全部最低安全條件
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：HTTPS、組織隔離、grant、撤權及完整錄影尚缺
+
+[B00-04]
+規劃節：02
+驗收要求：瀏覽器、代理、guacd、原生旁路及高信任管理平面威脅模型
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_SYSTEM_PLAN.zh-TW.txt
+缺口／下一步：逐一建立可執行負面測試
+
+[B00-05]
+規劃節：03
+驗收要求：八類角色採動作、範圍、條件；禁止自我審批與越權
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：建立領域授權與角色矩陣，不只原生權限名稱
+
+[B00-06]
+規劃節：03
+驗收要求：角色、組織、合約異動立即影響授權與未結案件
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：連線熱路徑查權威狀態，撤銷版本與案件轉交
+
+[B00-07]
+規劃節：04
+驗收要求：模組化單體、公開 Guacamole API、版本 adapter，避免無證據的新服務
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/ARCHITECTURE.md
+缺口／下一步：G01/G02 POC；需要分離服務時另寫 ADR
+
+[F01-01]
+規劃節：05
+驗收要求：廠商與人員欄位、狀態機、內部負責人與有效期
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：資料模型、狀態轉移及期限測試
+
+[F01-02]
+規劃節：05
+驗收要求：每人獨立身份；issuer/subject 與複合資產引用不因改名撞號
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：持久化身份映射、重用與多來源同 ID 測試
+
+[F01-03]
+規劃節：05
+驗收要求：跨廠商 URL、JSON ID、篩選條件及 API 均不能越界
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：兩廠商資料與原生入口負面測試
+
+[F01-04]
+規劃節：05
+驗收要求：邀請碼一次、短期、可撤銷及只存摘要
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：邀請流程、競態、重放與秘密遮罩
+
+[F01-05]
+規劃節：05
+驗收要求：邀請、密碼重設、MFA 重設角色與流程分離
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：禁止廠商聯絡人取得安全管理權
+
+[F01-06]
+規劃節：05
+驗收要求：離場阻新申請/連線、撤啟動資格/grant、處置 session 並記錄未完成項
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：完整離場服務、工作與稽核
+
+[F01-07]
+規劃節：05
+驗收要求：負責人離職轉交；PAM 停用不誤停全公司 IdP 身份
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：provisioning 範圍及交接測試
+
+[F02-01]
+規劃節：06
+驗收要求：資產盤點與 account_ref 使用穩定引用，不存秘密或依名稱推定 OS
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：themes/common/model.js; tests/model.test.cjs
+缺口／下一步：已有授權樹及複合 key；PAM 資產/帳號模型未建
+
+[F02-02]
+規劃節：06
+驗收要求：僅 READ 操作者可用已授權連線，無權取得目標 parameters
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：限合成 JDBC 角色；未代表所有 provider
+
+[F02-03]
+規劃節：06
+驗收要求：不把連線 UPDATE/ADMINISTER 發給保密操作者
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_SYSTEM_PLAN.zh-TW.txt
+缺口／下一步：PAM 角色及 vault adapter 落實後再測
+
+[F02-04]
+規劃節：06
+驗收要求：剪貼簿/檔案/SFTP/唯讀/分享/閒置具各協定能力矩陣
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：明確可支援項及伺服器參數對應
+
+[F02-05]
+規劃節：06
+驗收要求：不支援義務拒絕啟動；禁止任意 host/port 跳板
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：adapter 實際參數與原生旁路測試
+
+[F03-01]
+規劃節：07
+驗收要求：官方 TOTP 合成 JDBC 帳號首次綁定與正確驗證
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：正式帳號與使用者手機尚未啟用
+
+[F03-02]
+規劃節：07
+驗收要求：只輸入密碼、錯碼及同節點 OTP 重放被拒絕
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：過期碼、漂移、跨重啟/多節點待驗證
+
+[F03-03]
+規劃節：07
+驗收要求：無 user UPDATE 的讀取者不能經原生 API 自行停用 MFA
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：其他角色、群組例外與地址 bypass 尚待驗證
+
+[F03-04]
+規劃節：07
+驗收要求：另一管理員重設、舊 key 失效、本人重新綁定
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：正式身份核對、理由與完整稽核流程未建
+
+[F03-05]
+規劃節：07
+驗收要求：seed/QR/token 不進日誌、截圖、Git、報表；API 隱藏 seed
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py; bin/guac-theme
+缺口／下一步：局部 API 與輸出已限制；完整產品洩漏測試待補
+
+[F03-06]
+規劃節：07
+驗收要求：群組豁免、SSO amr/acr、issuer/audience/簽章與新鮮度可信
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：確認 IdP 後驗證，禁止信任瀏覽器布林值
+
+[F03-07]
+規劃節：07
+驗收要求：管理員全鎖與受控緊急復原，外部入口先封鎖
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_PILOT_RUNBOOK.zh-TW.txt
+缺口／下一步：獨立管理通道及正式演練未完成
+
+[F04-01]
+規劃節：08
+驗收要求：可信 HTTPS、代理/公開 URL/base path、WS 與 timeout
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：新增 localhost NGINX 的代理/HTTP/WS 與單 Web 路由驗證；正式可信 HTTPS、網域/public URL/base path 與 timeout 政策仍待試點
+
+[F04-02]
+規劃節：08
+驗收要求：guacd/目標網路不公開，原生 API/tunnel 同等保護
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：0.4.0 隔離 entry 唯一 publish localhost；Web/DB/guacd/SSH 無 host publish，原生登入/API/HTTP/WS 同等拒絕；正式網路/可信代理仍未部署
+
+[F04-03]
+規劃節：08
+驗收要求：UTC 儲存、伺服器邊界時間、全系統時鐘監控
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：時鐘來源、漂移及健康指標
+
+[F04-04]
+規劃節：08
+驗收要求：Cookie/CSRF/CORS/輸出編碼/上傳與 token URL 洩漏防護
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：PAM API 及既有身份整合負面測試
+
+[F04-05]
+規劃節：08
+驗收要求：IP 只是附加條件；SSO 登出、到期與撤銷有驗證
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：確認正式 IdP 與網路後驗收
+
+[F05-01]
+規劃節：09
+驗收要求：官方 recording-storage 模組載入且主題操作後仍載入
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：只證明模組，尚無真實錄影/播放
+
+[F05-02]
+規劃節：09
+驗收要求：RDP/SSH/VNC 真實目標錄影與回放能力矩陣
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：隔離協定目標及實際握手、錄影檔
+
+[F05-03]
+規劃節：09
+驗收要求：session/grant/個人/廠商/資產/帳號與 history UUID 關聯
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：錄影索引與不可猜測檔案 ID
+
+[F05-04]
+規劃節：09
+驗收要求：Pending/Writing/Finalizing/Available/Failed/Purged 狀態
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：異常退出、截斷與不完整提示
+
+[F05-05]
+規劃節：09
+驗收要求：guacd 最小寫權、播放最小讀權、非公開路徑與跨廠商授權
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：原生歷史及下載端點逐一測試
+
+[F05-06]
+規劃節：09
+驗收要求：鍵盤預設關閉、觀看/下載分權與操作稽核
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：實際參數、API 權限與事件
+
+[F05-07]
+規劃節：09
+驗收要求：保存期/quota/磁碟警示/保留鎖/刪除與完整性限制
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：容量/損毀/重啟測試，確認保存政策
+
+[F05-08]
+規劃節：09
+驗收要求：強制錄影準備失敗拒新連線，途中失敗按策略處置
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：真實檔案成長觀測及滿碟失敗測試
+
+[F06-01]
+規劃節：10
+驗收要求：申請欄位、合法狀態機；申請者不能指定核准人/風險/MFA
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：領域輸入與後端狀態轉移
+
+[F06-02]
+規劃節：10
+驗收要求：伺服器指定審批路線與版本快照；高風險不同人分階段
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：角色範圍、非本人及政策路線
+
+[F06-03]
+規劃節：10
+驗收要求：縮權可批准；擴權/延時重審並顯示實際差異
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：不可覆寫的請求版本及核准決定
+
+[F06-04]
+規劃節：10
+驗收要求：併發核准/駁回只有一個有效結果；角色/合約變動重評估
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：DB 交易/版本/鎖及競態測試
+
+[F06-05]
+規劃節：10
+驗收要求：自動核准限明確內部政策，外包/緊急不得自行擴權
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：可配置政策與負面測試
+
+[F06-06]
+規劃節：10
+驗收要求：站內通知與可選 connector，重送不改決定/重發權利
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：outbox 與 idempotency
+
+[F07-01]
+規劃節：11
+驗收要求：grant 欄位與狀態、時間半開區間、最大時長與併發
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py
+缺口／下一步：只有 probe intent 的 TTL/消耗及 lease 最長時間；正式 grant 狀態、時段/配額/政策版本尚無領域實作
+
+[F07-02]
+規劃節：11
+驗收要求：身份/MFA/組織/合約/原生權限/核准/義務全部取交集
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：權威 PolicyEngine 與強制執行點
+
+[F07-03]
+規劃節：11
+驗收要求：政策收緊重評估；放寬不自動擴張舊 grant
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py
+缺口／下一步：分享 generation 收緊與替換已驗；0.3.0 本機高水位跨 Web 重啟防回退見 PAM_RESTART_PROBE.zh-TW.txt；正式 policy_version/grant 及放寬無擴權未建
+
+[F07-04]
+規劃節：11
+驗收要求：可信後端身份、一次 launch、原子容量、失敗釋放與冪等
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py
+缺口／下一步：可信 context/一次消耗及併發已驗；outage suite 補 native connect 失敗時 TTL 內並行重放被拒且無 ACTIVE lease；正式 grant/原子 session 容量/釋放/持久化尚缺
+
+[F07-05]
+規劃節：11
+驗收要求：launch 綁定 subject/安裝/資產/grant/nonce/期限，不信任前端
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py
+缺口／下一步：資格綁伺服器登入 context/固定原生資產/期限與隨機 ID；installation/grant/policy/MFA 證據未接入
+
+[F07-06]
+規劃節：11
+驗收要求：原生 URL/HTTP/WS/重連/多 provider 不可繞過
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_G01_PROBE.zh-TW.txt
+缺口／下一步：一般 ID/HTTP/WS/有效舊共享憑證/實際 join 皆驗；其他來源/協定及 balancing 實選資產待補
+
+[F07-07]
+規劃節：11
+驗收要求：負載平衡檢查實選資產；共享/活動加入各自授權
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py
+缺口／下一步：已發有效共享憑證仍原生可登入但 connect 被拒，真實 active join 受控；群組實選資產授權未建
+
+[F08-01]
+規劃節：12
+驗收要求：session lease、狀態機、請求/確認中斷分離與最早期限
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py
+缺口／下一步：父子 tunnel 以公開 native UUID/lease 關聯，關子成功才確認父 ended；正式 STARTING/持久化/grant 時限/閒置策略待做
+
+[F08-02]
+規劃節：12
+驗收要求：撤銷拒新連線/重連，活動中斷重試並量測延遲
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py
+缺口／下一步：context revoke 與分享政策收緊會關 tracked child，舊 key 不能重連且不誤殺；非整個廠商/身份跨登入撤權
+
+[F08-03]
+規劃節：12
+驗收要求：控制平面失聯 fail closed、本地硬期限與有限輪詢
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py
+缺口／下一步：政策/checkpoint 故障與 Web 重啟已驗；新增 DB pause 時拒新與本地 deadline 關 SSH（fixture socket timeout=1秒）；IdP/控制服務/worker 及完整故障矩陣尚缺
+
+[F08-04]
+規劃節：12
+驗收要求：node/owner lease/heartbeat/fencing 防舊 worker 誤殺
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：單節點先驗證，多節點獨立關卡
+
+[F08-05]
+規劃節：12
+驗收要求：閘道斷線與 OS 登出分開；旁觀/接管需真實能力
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py
+缺口／下一步：已測閘道關閉後 nohup 程序仍存活；目標登出/程序控制及監看/接管能力尚缺
+
+[F09-01]
+規劃節：13
+驗收要求：一個受支援 vault provider、版本化秘密引用與最小權限
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：確認 provider 後實作 connector
+
+[F09-02]
+規劃節：13
+驗收要求：只在連線前取密，失敗/未知版本拒絕且無舊密碼 fallback
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：失敗測試與秘密型別
+
+[F09-03]
+規劃節：13
+驗收要求：per-session 注入，不改共用 Connection 或寫回原生 DB
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：指定 provider 真實驗證 token map/參數
+
+[F09-04]
+規劃節：13
+驗收要求：原生參數/複製/共享/匯入匯出/錯誤均無秘密
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：vault 實際注入後端到端洩漏測試
+
+[F09-05]
+規劃節：13
+驗收要求：秘密不可一般序列化、憑證外置；正式拒絕 mock provider
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：connector 契約及 profile 驗證
+
+[F10-01]
+規劃節：14
+驗收要求：目標 connector 聲明 OS/帳號種類/改密/恢復/所需權限
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：先選一種授權測試目標
+
+[F10-02]
+規劃節：14
+驗收要求：輪替 saga、排他鎖、驗證與 vault 失敗隔離/對帳
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：完整錯誤注入及受保護救援秘密
+
+[F10-03]
+規劃節：14
+驗收要求：最後相關 session 結束才使用後改密，版本可追溯
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：並發、撤銷與異常斷線
+
+[F10-04]
+規劃節：14
+驗收要求：秘密不進 argv/shell/log；不能承諾舊密碼永遠可 rollback
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：安全執行契約及救援演練
+
+[F10-05]
+規劃節：14
+驗收要求：獨立目標提權 provider，不用前端命令黑名單冒充
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：限定一項可驗證能力
+
+[F11-01]
+規劃節：15
+驗收要求：登入/邀請/審批/grant/session/錄影/vault/政策稽核事件
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：事件 schema、correlation 與 UTC
+
+[F11-02]
+規劃節：15
+驗收要求：領域變更與 outbox 同交易，至少一次傳送/event_id 去重
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：失敗/重送不得重發權利
+
+[F11-03]
+規劃節：15
+驗收要求：範圍內查詢、受控有限匯出、CSV 公式防護與秘密遮罩
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：API 權限及匯出負面測試
+
+[F11-04]
+規劃節：15
+驗收要求：保存/保留鎖/刪除留痕；外部 anchor 才宣稱抗管理者竄改
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：威脅分級與外部證據驗證
+
+[F12-01]
+規劃節：16
+驗收要求：我的工作台/申請/待審批有真實後端狀態與動作
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：G01 與領域/API 通過後再接 UI
+
+[F12-02]
+規劃節：16
+驗收要求：廠商人員/資產帳號/授權工作階段/稽核錄影/整合頁
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：依垂直流程逐頁接實際 API
+
+[F12-03]
+規劃節：16
+驗收要求：capabilities 顯示、執行時再授權，空資料/失聯/等待/不支援分明
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：後端契約與 UI 狀態
+
+[F12-04]
+規劃節：16
+驗收要求：鍵盤/手機/長名稱/多語/時間邊界/重複點擊與真實成功訊息
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/settings-browser.mjs
+缺口／下一步：既有主題已測；PAM 新表單尚未建立
+
+[X17-01]
+規劃節：17
+驗收要求：P01 沿原生儲存；PAM 業務資料庫/最小角色不改原生表
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py
+缺口／下一步：目前沒新增 PAM DB；業務 migration 未開始
+
+[X17-02]
+規劃節：17
+驗收要求：installation/identity/vendor/asset/account/role/policy 實體
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P02 schema、複合鍵與索引
+
+[X17-03]
+規劃節：17
+驗收要求：request/revision/approval/grant/launch/lease 實體與交易
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P03 schema、原子容量及版本
+
+[X17-04]
+規劃節：17
+驗收要求：recording/audit/outbox/job/rotation 實體與保留關聯
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：不 cascade 刪證據；持有權與冪等
+
+[X17-05]
+規劃節：17
+驗收要求：無跨 DB FK、熱路徑權威狀態/快取撤銷上限
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：migration 與失效測試
+
+[X18-01]
+規劃節：18
+驗收要求：me/assets/requests/cancel/decisions/grants API
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：G01 身份來源證明後才固定 URL
+
+[X18-02]
+規劃節：18
+驗收要求：launch/revoke/sessions/terminate API 回實際狀態
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：型別化 service 與 scope
+
+[X18-03]
+規劃節：18
+驗收要求：recordings/playback/audit/vendor suspend API
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：範圍、短期授權與 operation 狀態
+
+[X18-04]
+規劃節：18
+驗收要求：CSRF/輸入/scope/correlation/idempotency/無洩漏錯誤碼
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：契約與安全負面測試
+
+[X18-05]
+規劃節：18
+驗收要求：Policy/Grant/Session/Vault/Recording/Audit connector 型別化契約
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：先完成 G01/G02 adapter 證據
+
+[X18-06]
+規劃節：18
+驗收要求：connector 版本/能力/timeout/冪等/health，不接受任意腳本/eval
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：受信任安裝及能力協商
+
+[X19-01]
+規劃節：19
+驗收要求：三層設定，實例路徑可配，機密外置
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：bin/guac-theme; docs/ARCHITECTURE.md
+缺口／下一步：既有 CLI 路徑/URL 可配；PAM schema 未建
+
+[X19-02]
+規劃節：19
+驗收要求：demo/internal/external profiles，vendor 預設不開放，audit 非 enforce
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_SYSTEM_PLAN.zh-TW.txt
+缺口／下一步：正式 profile 驗證器未建
+
+[X19-03]
+規劃節：19
+驗收要求：共同 Compose manifest/lock，啟用主題時可採納安全 overlay
+狀態：隔離通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：2026-10-30
+證據：bin/guac-theme; tests/test_deployment_guard.py; tests/pam_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：同一 state/完整 Compose 的原有證據保留；0.4.0 補 entry/獨立 bootstrap/module pin 的保留驗證，其他管理工具仍須共用
+
+[X19-04]
+規劃節：19
+驗收要求：switch/reset/restore/recover 保留必要模組；缺設定先拒絕
+狀態：隔離通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：2026-10-30
+證據：tests/test_deployment_guard.py; tests/pam_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：0.4.0 install/switch/reset/restore 保留獨立 bootstrap/JAR/entry 並 fresh SSH 成功；recover 沿用前批工具測試，正式全安全組合與升級尚缺
+
+[X19-05]
+規劃節：19
+驗收要求：靜態主題拒絕 Java/auth provider；獨立安全 JAR 不混包
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：bin/guac-theme; tests/test_manager.py
+缺口／下一步：主題拒絕已測；安全 JAR 專用流程待建立
+
+[X19-06]
+規劃節：19
+驗收要求：安全停用不借 theme reset；只動 Web、不刪 DB/volume
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：bin/guac-theme; tests/docker_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：0.4.0 主題操作不移除安全 JAR/入口、不重建 db/guacd/ssh；安全升降級與受控停用仍需專用正式復原程序
+
+[X20-01]
+規劃節：20
+驗收要求：模組逐步建立、Domain 無 DOM、Guacamole API provided
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：scripts/build_pam_probe.py; docs/PAM_G01_PROBE.zh-TW.txt
+缺口／下一步：首個 adapter Java 8 target/官方 API classpath 且不混包核心已測；Domain/正式 adapter 未建
+
+[X20-02]
+規劃節：20
+驗收要求：不硬綁使用者/路徑/port/服務名；不依賴工作目錄
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：bin/guac-theme; tests/docker_acceptance.py
+缺口／下一步：新增模組也要清潔路徑測試
+
+[X20-03]
+規劃節：20
+驗收要求：demo 合成隨機帳密、本機入口，不發布共用預設密碼
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/pam_acceptance.py; tests/docker_acceptance.py
+缺口／下一步：正式 profile 仍需拒絕空白/預設秘密
+
+[X20-04]
+規劃節：20
+驗收要求：Git/Release 無實例秘密、dump、錄影、日誌與客戶資料
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：.gitignore; scripts/build.py
+缺口／下一步：目前規則及人工核對；完整供應鏈掃描待建
+
+[X20-05]
+規劃節：20
+驗收要求：一般安裝免 Maven/Node，CLI 可獨立安裝與升級備份
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：scripts/install.sh; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：未來 PAM JAR 安裝另驗證
+
+[X20-06]
+規劃節：20
+驗收要求：新 checkout CI、自訂路徑/服務名、可選能力不默默降級
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：.github/workflows/ci.yml; .github/workflows/pam-acceptance.yml
+缺口／下一步：本機套件已測；遠端未建立/執行
+
+[X21-01]
+規劃節：21
+驗收要求：原始碼/預建兩種路線、SHA、固定順序時間戳可重現
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：scripts/build.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：尚無對外 GitHub Release
+
+[X21-02]
+規劃節：21
+驗收要求：PAM JAR/範例/migration/SBOM/簽章/鎖定依賴
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：scripts/build_pam_probe.py; docs/PAM_G01_PROBE.zh-TW.txt
+缺口／下一步：獨立測試 JAR/SHA/build-info 已有；正式 PAM JAR、migration、SBOM 與簽章待做
+
+[X21-03]
+規劃節：21
+驗收要求：設定匯出遮罩、引用重對應、不匯入有效 grant/邀請/session
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：安全移轉 schema 與負面測試
+
+[X21-04]
+規劃節：21
+驗收要求：含秘密備份獨立加密流程；離線/架構按實測宣告
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：備份/解密及離線/ARM64 驗收
+
+[X22-01]
+規劃節：22
+驗收要求：完整 DB/MFA/錄影/anchor/金鑰備份，不把主題備份冒充完整
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_PILOT_RUNBOOK.zh-TW.txt
+缺口／下一步：完整還原與權限隔離未演練
+
+[X22-02]
+規劃節：22
+驗收要求：還原對帳 grant/session/vault/錄影，離場/撤銷不復活
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：快照時間回溯與失效演練
+
+[X22-03]
+規劃節：22
+驗收要求：模組/依賴/時鐘/schema/容量/jobs/outbox/vault/拒絕監控
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：新增空白 204/503 provider/policy readiness 供 entry 查核，缺模組為404而封鎖；不是 MFA/grant/DB/worker 健康，完整營運監控仍缺
+
+[G01-01]
+規劃節：23
+驗收要求：JDBC 可信身份及 decorator/redecorate 接入證明
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：docs/PAM_G01_PROBE.zh-TW.txt; tests/gate_acceptance.py
+缺口／下一步：可信 JDBC provider/subject 與 decorate/redecorate 已驗證；不代表 MFA 或穩定登入 session 綁定
+
+[G01-02]
+規劃節：23
+驗收要求：原生 client URL、HTTP 與 WS tunnel 到達伺服器 connect gate
+狀態：隔離通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：2026-10-30
+證據：tests/gate-browser.mjs; tests/gate_acceptance.py; docs/PAM_G01_PROBE.zh-TW.txt
+缺口／下一步：單 JDBC/單節點拒絕探針；尚無正式政策、grant 或 admission
+
+[G01-03]
+規劃節：23
+驗收要求：ConnectionGroup/ActiveConnection/共享/重連均有 gate
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py
+缺口／下一步：已發有效 key、匿名 postgresql-shared HTTP/WS、真實 active join 與原生舊 HTTP 讀寫均驗；balancing 實選資產/其他 provider 與協定仍缺
+
+[G01-04]
+規劃節：23
+驗收要求：可信 session/admission 綁定與跨身份重放防護
+狀態：隔離通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：2026-10-30
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py; docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt
+缺口／下一步：0.4.0 重跑登入 context/一次資格 57 項，匿名共享不能發 primary intent；正式 grant/MFA、其他身份來源待做
+
+[G02-01]
+規劃節：23
+驗收要求：真實 tunnel close/remove 權限與效果可確認
+狀態：隔離通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：2026-10-30
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; tests/session_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt
+缺口／下一步：單節點 SSH 父 revoke 可關已追蹤分享/active join 子 tunnel，無關 primary 仍執行指令；不保證 OS 任務/其他協定
+
+[G02-02]
+規劃節：23
+驗收要求：期限/撤銷/失聯/重啟量測，單節點與多節點分開
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt
+缺口／下一步：單 Web/JDBC/SSH 已有 restart 51 與 outage 32 項；DB pause 拒新/硬期限、guacd SIGKILL/消耗/恢復已驗；IdP/控制服務/worker、HA/fencing/其他協定尚缺
+
+[G03-01]
+規劃節：23
+驗收要求：原生參數、user/asset 目錄部分最小權限
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py
+缺口／下一步：部分 JDBC API 已驗證；跨廠商模型尚缺
+
+[G03-02]
+規劃節：23
+驗收要求：歷史/錄影/共享/多來源與跨廠商端點隔離
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py
+缺口／下一步：僅實測分享來源不能取得 primary intent/繞過 connect，沒有完成兩廠商、歷史、錄影與其他 IdP 隔離
+
+[G04-01]
+規劃節：23
+驗收要求：所有管理操作使用共同 Compose 清單，保留 TOTP/recording
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：tests/pam_acceptance.py; tests/test_deployment_guard.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：0.4.0 完整 Compose/module pin 下 install/switch/reset/restore 保留 bootstrap/entry 並真實 SSH；TOTP/錄影保留前批證據，正式全組合/所有工具仍缺
+
+[G04-02]
+規劃節：23
+驗收要求：gate 遺失/政策依賴壞掉時外包入口 fail-closed
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：新增獨立 bootstrap 缺檔/改檔拒啟動、受保護 entry 缺模組/政策拒新；私有未載模組 Web 真能 SSH 時 entry 仍封鎖；正式 external profile/HTTPS/HA 尚缺
+
+[G05-01]
+規劃節：23
+驗收要求：版本取密、不洩漏、無效版本拒絕
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：一個真實 vault provider
+
+[G05-02]
+規劃節：23
+驗收要求：一種目標輪替與 vault 失敗救援演練
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P06 前置目標管理權/救援通道
+
+[P00]
+規劃節：24
+驗收要求：規格/角色/威脅/ADR 與 G01-G04 最小 POC
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_ACCEPTANCE.zh-TW.txt; docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_SESSION_PROBE.zh-TW.txt; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：新增 0.4.0 entry/bootstrap 與主題持續性 64 項；保留前批 G01/G02 故障證據，完整 G01/G02/G03/G04 最小承諾仍未全通過
+
+[P01]
+規劃節：24
+驗收要求：HTTPS、TOTP、錄影/回放/容量與啟用/復原試點
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_PILOT_RUNBOOK.zh-TW.txt
+缺口／下一步：只有本機 TOTP 與模組載入；其他待補
+
+[P02]
+規劃節：24
+驗收要求：身份/廠商/角色/範圍持久化 API/UI/隔離
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：先通過 G01 最小安全接入
+
+[P03]
+規劃節：24
+驗收要求：審批/grant/admission/gate/撤銷/期限垂直流程
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：依賴 G01/G02，不先宣稱 JIT
+
+[P04]
+規劃節：24
+驗收要求：稽核/通知/保存/退出演練與外包最低驗收
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：依賴 P02/P03 及錄影隔離
+
+[P05]
+規劃節：24
+驗收要求：一個真實 vault connector 與版本注入
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：確認 provider/授權與 G05 前半
+
+[P06]
+規劃節：24
+驗收要求：一類帳號輪替/提權與救援流程
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：目標管理授權與 G05 全部
+
+[P07]
+規劃節：24
+驗收要求：乾淨 Git/預建/離線/平台/供應鏈/容量/HA 硬化
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：scripts/build.py; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：僅現有主題/CLI 發行基礎；PAM 全套待驗證
+
+[R25-01]
+規劃節：25
+驗收要求：每批讀計畫/版本來源、設計變更 ADR、不擴大正式政策
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：持續逐批審查，不視為永久通過
+
+[R25-02]
+規劃節：25
+驗收要求：每批合成測試、秘密遮罩、角色/負面/邊界/競態
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py; tests/test_deployment_guard.py
+缺口／下一步：新增領域與 adapter 的測試待補
+
+[R25-03]
+規劃節：25
+驗收要求：文件/schema/相容性/Release notes/證據/限制同步
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/RELEASE-NOTES.md; docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：本輪新增表單並持續更新
+
+[R25-04]
+規劃節：25
+驗收要求：正式套用前備份/差異/復原/隔離證據；只有已驗證服務可重建
+狀態：設計完成
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_PILOT_RUNBOOK.zh-TW.txt
+缺口／下一步：本輪仍不改正式入口/資料
+
+[A]
+規劃節：26
+驗收要求：身份/MFA/合約失效與復原完整驗收
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py
+缺口／下一步：MFA 局部通過；合約/身份生命週期未實作
+
+[B]
+規劃節：26
+驗收要求：兩廠商同名/換 ID/來源/API 不越界
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P02 fixture 與持久化隔離
+
+[C]
+規劃節：26
+驗收要求：不可自批/失權/競態/修改重審
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P03 審批狀態機
+
+[D]
+規劃節：26
+驗收要求：時間邊界/撤銷/超額/重放/跨身份/不支援義務
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_SESSION_PROBE.zh-TW.txt; tests/session_acceptance.py
+缺口／下一步：僅 probe intent 過期、重放、撤銷、跨登入及併發；正式 grant 時間/配額/能力政策仍未實作
+
+[E]
+規劃節：26
+驗收要求：原生 URL/HTTP/WS/重連/群組/共享/多 provider 防旁路
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_G01_PROBE.zh-TW.txt
+缺口／下一步：有效舊 key、匿名 HTTP/WS、active join、舊 HTTP token 讀寫不再可執行；其他協定/provider/實選資產未驗
+
+[F]
+規劃節：26
+驗收要求：期限/撤銷可確認、失聯/重啟不延長或誤殺
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py
+缺口／下一步：單節點 SSH deadline/revoke/不誤殺與 Web 重啟已有證據；新增 DB pause/guacd SIGKILL 及恢復，HA/其他協定/IdP/worker 等故障仍缺
+
+[G]
+規劃節：26
+驗收要求：真實三協定錄影回放/滿碟/損毀/保存與授權
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P01/F05/G03
+
+[H]
+規劃節：26
+驗收要求：所有回應/匯出/錯誤/日誌/截圖/Git/artifact 無秘密
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：tests/pam_acceptance.py; scripts/build.py
+缺口／下一步：vault/錄影/新 API 尚無完整測試
+
+[I]
+規劃節：26
+驗收要求：完整事件/去重/錄影存取追溯與外部 anchor
+狀態：未開始
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P04/F11；外部不可變存放另分級
+
+[J]
+規劃節：26
+驗收要求：乾淨/既有/自訂路徑、升級/還原/reset 保留全部安全
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; tests/pam_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：0.4.0 補 entry/bootstrap 在主題 install/switch/reset/restore 的安全持續性；缺 JAR/政策封鎖已驗，正式 PAM 升級/還原及多安全組合未建
+
+[K]
+規劃節：26
+驗收要求：MFA 裝置/依賴失聯/備份還原/jobs/改密失敗救援
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：docs/PAM_SHARING_PROBE.zh-TW.txt; tests/sharing_acceptance.py; tests/pam_acceptance.py; docs/PAM_RESTART_PROBE.zh-TW.txt; tests/restart_acceptance.py; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py
+缺口／下一步：新增 DB pause/guacd 終止與恢復；保留政策/checkpoint 故障及 deadline 證據，完整備份/IdP/worker/改密救援/jobs 演練尚缺
+
+[L]
+規劃節：26
+驗收要求：新 clone/預建/校驗簽章/設定遷移/無客戶資料與免編譯
+狀態：部分通過
+核對日期：2026-10-31
+最後處理日期：2026-10-31
+最近驗證日期：2026-10-31
+範圍內完成日期：—
+證據：scripts/build.py; .github/workflows/ci.yml; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+缺口／下一步：完整套件納入 0.4.0 原型/entry/bootstrap/workflow/手冊，來源 72 項 Python 通過；未推遠端，正式 PAM 發行/簽章/遷移未交付
+
+[D01]
+規劃節：27
+驗收要求：人數/廠商/資產/併發量與容量目標
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：實測前不承諾容量
+
+[D02]
+規劃節：27
+驗收要求：HTTPS/網域/反向代理/獨立管理通道
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：docs/PAM_IMPLEMENTATION_STATUS.zh-TW.txt
+缺口／下一步：使用者表示暫無，先 localhost
+
+[D03]
+規劃節：27
+驗收要求：正式身份來源及外包 IdP
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：目前僅合成 JDBC 測試，非正式決策
+
+[D04]
+規劃節：27
+驗收要求：審批責任/代理/最長授權/緊急政策
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P03 前確認，不先設定正式政策
+
+[D05]
+規劃節：27
+驗收要求：合約/人員資料與離場責任來源
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P02 前確認
+
+[D06]
+規劃節：27
+驗收要求：保存期/容量/觀看下載/保留鎖
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：錄影試點及正式接入前確認
+
+[D07]
+規劃節：27
+驗收要求：剪貼簿/檔案/分享/唯讀/強制錄影資產
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：能力矩陣與正式政策分開
+
+[D08]
+規劃節：27
+驗收要求：只關閘道或目標登出/停止程序
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：目前僅設計閘道中斷，不承諾 OS 動作
+
+[D09]
+規劃節：27
+驗收要求：vault provider/預算/網路/應用授權
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：P05 前確認
+
+[D10]
+規劃節：27
+驗收要求：獨立安裝/多客戶/平台/簽章方式
+狀態：待確認
+核對日期：2026-10-30
+最後處理日期：—
+最近驗證日期：—
+範圍內完成日期：—
+證據：—
+缺口／下一步：先單一安裝，不宣稱 SaaS/HA/ARM64
+
+[R28-01]
+規劃節：28
+驗收要求：官方 1.6.0 文件、來源 commit 與實際版本綁定
+狀態：部分通過
+核對日期：2026-10-30
+最後處理日期：2026-10-30
+最近驗證日期：2026-10-30
+範圍內完成日期：—
+證據：docs/PAM_G01_PROBE.zh-TW.txt; docs/ARCHITECTURE.md
+缺口／下一步：新增 1.6.0 來源映射、JAR 摘要與真實容器證據；其他接入點持續逐批驗證
+
+四、處理／驗證事件紀錄（只追加；更正需保留前值原因）
+2026-10-30｜表單建立｜逐項檢查計畫第 00～28 節、現有 CLI/測試與實作紀錄。
+  前次證據：47 Python、6 模型、46 PAM、132 UI/CRUD；本輪此刻尚未重跑。
+  結果：未把設計、模組載入及原生 CRUD 當成完整外包隔離或 PAM gate。
+  下一工作：G01-01／G01-02 最小 Java adapter POC；完成後回填此表。
+
+2026-10-30｜G01-01/02/03、F07-06｜由未開始/待驗證改為實作中；完成 Java 編譯與 HTTP 負面測試。
+  發現並修正：過早拒絕活動目錄 metadata 導致首頁導向失敗；瀏覽器錯誤碼改用官方 enum。
+  環境：隨機 localhost/JDBC fixture；未改正式環境；完整結果待後續回填。
+
+2026-10-30｜G01 最小探針驗收通過｜tests/gate_acceptance.py：21 項 server 檢查＋5 項 browser 檢查。
+  環境：官方 Guacamole 1.6.0、合成 JDBC、隨機 localhost fixture、單 Web 節點。
+  G01-01/G01-02：實作中→隔離通過；G01-03/F07-06/E：實作中/未開始→部分通過。
+  證據：docs/PAM_G01_PROBE.zh-TW.txt；來源、測試、限制與產物摘要可重現。
+  JAR SHA-256：dc2c5f1e2ef5c6a8dcc3cf8dbd5dd054f5b0669ac501ac5f1460de4faa2baa0f。
+  未完成：G01-04 admission/session 綁定、真正 active/shared join、G02 撤銷與期限。
+  53 項 Python 檢查通過（含 ledger 日期/證據/來源變更防誤記錄 6 項）；未改正式服務。
+
+2026-10-30｜P01/G03/G04 回歸｜tests/pam_acceptance.py 在共用 fixture callback 變更後重跑 46 項通過。
+  環境：獨立合成資料庫與官方容器；保留預設 IP ban；全部測試容器已清理。
+  正式環境：沒有啟用探針、MFA 或新入口，沒有改正式帳號與資料。
+
+2026-10-30｜G01/G02 真實 SSH 續作｜tests/session_acceptance.py：57 項通過。
+  G01-04、G02-01：未開始→隔離通過；G02-02 及相關 F07/F08/D/F：未開始/設計完成→部分通過。
+  環境：單 Web/JDBC、官方 guacd 1.6.0、獨立 OpenSSH Linux、隨機 localhost fixture。
+  實際執行 shell 指令、原生 join/share 正向對照、一次資格併發、同帳號另登入及不同人拒絕、
+  owner/native close/context revoke/deadline、權限與不誤殺，以及背景程序不等於閘道生命週期。
+  單次量測：owner close 19ms；native remove 49ms；context revoke 38ms；deadline 確認超時 9ms。
+  不作 HA/正式 SLA 承諾；正式 grant/MFA、已發共享憑證、失聯/重啟與 RDP/VNC/錄影仍未完成。
+  Session probe SHA-256：86ccba8f32197f034a65da9ed329543b404bc8db9e900a89ce5fa0c928a5932d。
+  回歸：原 G01 21＋5、TOTP 46 重跑通過。測試容器與手動 SSH image tag 已清理。
+  正式環境未安裝兩種 probe，也沒有修改正式 Compose、資料庫、帳號、登入或容器。
+
+2026-10-30｜SSH fixture 金鑰修正與最終複驗｜同一 Docker RUN 層移除套件預建 host key。
+  使用預設自動建 image 路線，確認 image 無預建私鑰，runtime 新金鑰完成 57 項實測。
+  最終量測：owner close 17ms、native remove 47ms、context revoke 37ms、deadline 確認超時 6ms。
+  image ID：sha256:e23fcba522826e76af7359b5a8b9f1ddbd81fb7275e3a6d5301afa235cafe38c。
+  原先 19/49/38/9ms 為前一輪本機觀測，保留歷史；皆不是對外 SLA。
+  自己建立的 fixture 容器與 image tag 已清理；不清除他人的 Docker image/cache/volume。
+
+2026-10-30｜最後複驗與不誤殺加強｜57 項通過，關閉 owner 後，另一條 SSH 再執行新指令成功。
+  最後觀測：owner close 18ms、native remove 47ms、context revoke 18ms、deadline 確認超時 6ms。
+  image ID：sha256:42996b519437a04c5bf12f17c86bbc6959c11fa12bf7d4922eb1b598d36af7a8。
+  image 無預建 host key；套件版本仍為 1:9.2p1-2+deb12u10；產物 JAR 摘要不變。
+  單次量測與前輪差異屬正常本機觀測，未改成正式 SLA；自己的容器和 image tag 均清理。
+
+2026-10-31｜Session probe 0.2.0 共享與政策故障｜新增 53 項真實 SSH 檢查通過。
+  正向對照先建立真正共享；同一 Web 以 read-only 政策目錄原子更新，舊 key 仍可原生登入，
+  但舊/新匿名登入的 HTTP/WS 均不能再 connect；已連分享、active join 會實際關閉。
+  已測原生 HTTP bearer 在收緊前可送指令；收緊後 read/write 回 404、目標未執行晚到指令。
+  父 native UUID 對應 lease/child，不用 username 猜測；父 revoke 關子而另一人仍可執行新指令。
+  缺檔、回退、同 generation 換內容、未知 schema 失效；local primary deadline 未被政策 I/O 取消。
+  單次觀測：分享收緊至全部斷線 130ms；父撤銷至父/子斷線 32ms，不是正式 SLA。
+  SHA-256：4347655b98d958867a1145aec7924a2451a2afa6abab2b92968a91d2ca917fe8。
+  原 session 57、原 gate 21+5、TOTP 46 在 0.2.0 續作後均重跑通過；來源/限制見 PAM_SHARING_PROBE.zh-TW.txt。
+  G01-03/G02-02/E/F 等維持部分通過；新增 G03-02/G04-02/X22-03/F07-03 部分證據，未宣稱完整正式功能。
+  已有隔離通過項目保留首次完成日 2026-10-30，只更新本次核對/處理/驗證日 2026-10-31。
+  prototype 非正式 grant/MFA/IdP revocation；高水位未耐久化、其他協定/provider/HA/缺 JAR 入口仍未完成。
+
+2026-10-31｜回歸與清理｜53 項 Python、6 項前端模型均通過。
+  共享專項 53、0.2.0 session 57、gate 21+5、TOTP 46 均實際執行通過。
+2026-10-31｜Session probe 0.3.0 重啟與持久化｜新增 51 項真實隔離檢查通過。
+  命令：python3 tests/session_acceptance.py --suite restart --probe-jar dist/poc-session/guacamole-pam-session-probe-0.3.0.jar
+  Linux 本機單 Web/JDBC/SSH；POSIX byte-range lock 案例確實執行。
+  正常重建與 SIGKILL 後，持久 generation 拒絕政策回退、舊 login/tunnel/intent 不復活。
+  checkpoint 損毀、缺檔、權限、鎖衝突與唯讀 state mount 都拒新；修復後 fresh SSH 執行成功。
+  首次唯讀案例遇到舊 writer 在重建前正常落盤的測試競爭，改成先停止 writer 再發布新政策，
+  保留原檢查並完整重跑 51 項通過；詳見 docs/PAM_RESTART_PROBE.zh-TW.txt。
+  新增初始化專項 6 項；來源共 59 項 Python、6 項前端模型與 JS 語法檢查通過。
+  0.3.0 JAR SHA-256：afa4a80ea6380ae127cce961f27de80d2d1f74a49cbe3b32e3d94de5b020b6b3。
+  G02-02/G04-02/F07-03/F08-03/X22-03/P00/F/J/K 維持部分通過，日期、證據及缺口已核對。
+  保留初次完成日期與 152 項原統計；不將本機 checkpoint 宣稱為正式 grant/HA/完整還原。
+2026-10-31｜0.3.0 共享回歸｜同版 JAR 重跑 sharing suite 53 項通過。
+  政策收緊至共享關閉 132ms、父 revoke 關父子 29ms、晚到 HTTP write 404，均為單次本機觀測。
+  狀態目錄由新 fixture 明確初始化，政策檔唯讀掛載；無正式變更。
+2026-10-31｜0.3.0 原 session 回歸｜57 項真實 SSH 檢查通過。
+  owner terminate 34ms、native remove 105ms、context revoke 23ms、deadline 確認超時 11ms；非 SLA。
+  G01-04 維持隔離通過，初次完成日期仍為 2026-10-30，未擴張為正式 grant/MFA 驗收。
+  原 gate 21+5、TOTP 46 沿用前次已執行的歷史紀錄，本次未重跑這兩套。
+  新增/修改項目以 2026-10-31 更新；未重驗項目的舊日期與首次完成日保留。
+  本輪自己的隔離 fixture 容器與手動 SSH image tag 已清理；正式服務與登入方式未變。
+2026-10-31｜可攜套件複驗｜主 release、gate、session 校驗碼皆通過；0.3.0 重建 hash 相同。
+  全套 1.2.0 ZIP 可重現建置；解壓後 152 項 ledger 檢查及 59 項 Python 測試通過。
+  已確認新 checkpoint Java 來源、初始化工具、fixture helper、restart suite 與 TXT 均納入套件；
+  不含測試 runtime state、秘密或 probe 執行 JAR（仍為獨立建置/發行），沒有對遠端 CI 或 Git 推送。
+  session class major 52、僅自有 namespace；舊 0.2.0 JAR 已核對外部備份後移出當前產物目錄。
+  現有 Guacamole localhost HTTP 200；此為可用性讀取，沒有變更正式部署。
+
+2026-10-31｜原生依賴失聯與恢復｜同版 session probe 0.3.0 的 outage suite 32 項通過。
+  命令：python3 tests/session_acceptance.py --suite outage --probe-jar dist/poc-session/guacamole-pam-session-probe-0.3.0.jar
+  新建隨機 localhost/單 Web/JDBC/SSH，DB process pause 保留原 tmpfs DB，不重建合成帳號冒充恢復。
+  明確設定 POSTGRESQL_SOCKET_TIMEOUT=1 與 DEFAULT_STATEMENT_TIMEOUT=1（秒），不代表預設部署有界。
+  DB 暫停時 pending intent 尚未到期即拒連（code 512，4945ms），發新資格 HTTP 500（2022ms）；
+  真實 SSH 仍短暫可執行，但 local deadline 在 DB 恢復前關閉 tunnel，確認超時 667ms。
+  guacd SIGKILL 後斷線 225ms、native connect timeout 514（15099ms），另一個並行請求在 TTL 內 771；
+  沒有新的 ACTIVE lease，恢復同一 guacd 容器後重放仍拒絕，fresh intent 真正執行新 SSH。
+  Web/SSH 容器識別維持原值；完整結果、測試時序修正及 timeout/稽核限制見 PAM_OUTAGE_PROBE.zh-TW.txt。
+  新增 lifecycle 目標歸屬負面檢查 6 項；來源 65 項 Python、6 項前端模型與 JS 語法通過。
+  F07-04/F08-03/X22-03/G02-02/G04-02/P00/F/K/L 更新處理/驗證日、證據與缺口，仍維持部分通過。
+  152 項統計不變；未開始項目與首次完成日不變，不宣稱正式 grant/完整 DB 故障矩陣或 HA。
+  Java/CLI/主題未改，JAR SHA-256 仍為 afa4a80ea6380ae127cce961f27de80d2d1f74a49cbe3b32e3d94de5b020b6b3。
+  本輪未重跑 session 57/sharing 53/restart 51/gate 21+5/TOTP 46，這些保留前批已執行的歷史證據。
+
+2026-10-31｜失聯批次套件與清理｜完整 1.2.0 ZIP 解壓後 65 項 Python 與 152 項 ledger 檢查通過。
+  已納入 outage fixture、防誤操作測試、workflow 與 TXT；152 項統計及規劃指紋保持一致。
+  本輪所有新建 fixture 容器與自建 SSH image tag 已清理；現有 localhost Guacamole HTTP 200。
+  未修改或重建正式服務，未推送 Git/發布 release/執行遠端 CI。
+
+2026-10-31｜G04 獨立入口及啟動檢查｜session probe 0.4.0 入口專項擴充至 64 項通過。
+  命令：python3 tests/session_acceptance.py --suite ingress --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+  localhost 唯一 publish 的 NGINX 入口逐請求查 provider/policy readiness；Web/DB/guacd/SSH 無 host publish。
+  獨立 bootstrap 釘選 JAR hash，缺檔/改檔 exit78；policy 不可用時入口拒首頁/登入/REST/HTTP/WS。
+  私有負面對照省略 bootstrap 與 JAR，原生 Web 確實能登入並執行 SSH，但 entry 仍拒絕新存取。
+  恢復後 fresh intent 可 SSH；install/switch/reset/restore 保留 bootstrap/JAR/entry，其他容器識別不變。
+  初輪 43 項通過；擴充曾遇未定位的 browser operation，補安全階段診斷後 64 項完整重跑通過。
+  bootstrap 負面/校驗 7 項、來源共 72 項 Python、6 項前端模型與 JS 語法檢查通過。
+  F04-01/F04-02：未開始→部分通過；G04/P00/J 等保留部分通過；原隔離通過項目保留首次完成日。
+  JAR SHA-256：b464bb6cb6949262d93ca6ff989b993bc9b6a1e7e2db67a9eb9afc2b230d3bba。
+  詳細來源/環境/能力與 HA/HTTPS 限制見 docs/PAM_INGRESS_PROBE.zh-TW.txt；未變更正式服務。
+
+2026-10-31｜0.4.0 最後複驗｜相同 JAR 依序完成 ingress 64/session 57/sharing 53/restart 51/outage 32，全部通過。
+  ingress 最後版本在每次主題操作後重新載入前端，fresh login/intent 真實 SSH 成功。
+  SSH：owner terminate 37ms/native remove 55ms/context revoke 37ms/deadline 確認超時 12ms。
+  共享：收緊關閉 157ms、父 revoke 關子 57ms、晚到 HTTP write 404。
+  重啟 readiness：正常 16086ms、SIGKILL 12478ms、唯讀 11859ms、修復可寫 12529ms。
+  失聯：DB pending 拒絕 5783ms/issue 拒絕 2039ms/deadline 確認超時 1155ms；guacd kill 後斷線435ms/connect timeout15235ms。
+  上述為單次本機觀測，均非 SLA；完整環境/timeout 前提/信任邊界見 PAM_INGRESS_PROBE.zh-TW.txt。
+  來源 72 項 Python、6 項前端模型、JS 語法通過；解壓包 72 項 Python 與 152 項 ledger 亦通過。
+  0.4.0 同編譯器重建 hash 相同，class major52/自有 namespace；舊 0.3.0 核對外部備份後移出目前產物。
+  gate21+5/TOTP46/UI132 本輪未重跑；遠端 CI/Git 推送未執行。初次完成日保留，不把 G04 標為正式上線。
+  全部新建 fixture 容器與自建 SSH image tag 已清理；既有 Guacamole localhost HTTP200，正式部署未改。
+
+2026-11-01｜使用者指定連線設定中文化｜新增獨立 JDBC 1.6.0 繁中補充 JAR 1.0.0。
+  49 個 JDBC 語系項目全數覆蓋；截圖六項與 guacd／帳號／群組／密碼政策文字一併補齊。
+  命令：PATH=/tmp/gtm-tools/node/bin:$PATH sh scripts/test.sh；72 項 Python、6 項 Node 模型及語法通過。
+  隔離 Docker 設定頁專項 78 項通過，含中文標籤及原生 CRUD。首次完整整合曾於群組編輯逾時。
+  經使用者要求套用既有本機部署，僅 Web 重建；49 項伺服器語系比對及瀏覽器六項標籤／插值／英文通過。
+  原有擴充、Compose、掛載及 DB／guacd 容器識別不變；未查詢／修改正式帳號、連線或權限。
+  SHA-256：fe75948d3356278f0cbacb94e9fd3eb2a1859a6e1d44e117766c24df5a1a9909。
+  完整 Docker 複驗通過：首頁 28／LibreNMS 設定 78／Dark 設定 78，共 184 項瀏覽器檢查。
+  install/switch/reset/restore/doctor、故障注入及 recover 通過，語系套件不被移除；fixture 自動清理。
+  完整 ZIP 解壓驗證語系來源／預建檔、152 項 ledger 及內外 SHA256SUMS 通過。
+  外部網址由本機無法連通，不能宣稱已驗證外部入口；詳見 docs/JDBC_TRANSLATION.zh-TW.txt。
+  B00-02 維持部分通過，保留 152 項統計；本批語系修改不代表 PAM 安全關卡完成。
+
+2026-11-01｜指定 RDP 內部錯誤修正｜唯讀診斷發現連線層級 proxy_port=0 導致 Web 連 guacd 被拒絕。
+  限定該連線將 proxy_port 清空，Web→既有 guacd:4822 檢查通過，後續重試已進入 guacd。
+  原外部 RDP 端點由使用者電腦可連，但由 Guacamole 主機及 guacd 皆逾時；尚未確認具體網路規則原因。
+  使用者提供內網 IPv4 後，主機及 guacd 到內部 3389 均通；未帶帳密的 RDP 協商選擇 NLA。
+  已將該連線改走確認的內網 IPv4:3389，security 改 any；保留既有帳密／權限／連線數。
+  自簽憑證驗證失敗後，取得使用者明確確認才設 cert-tofu=true；ignore-cert 未啟用。
+  設定變更前後的非機密紀錄僅保存 root 專用狀態目錄；未重啟服務，未公開原始日誌或內網端點。
+  實際桌面與首次信任記錄仍待使用者重連確認；詳見 docs/RDP_CONNECTION_REPAIR.zh-TW.txt。
+  152 項狀態統計保持一致；此為連線修正，不作為 PAM 安全功能完成證據。
+
+2026-11-01｜RDP 相同錯誤再追查｜設定再度回到原外網端點、proxy_port=0、security=rdp，TOFU 參數缺失。
+  重寫來源尚未確認；已保存當次非機密快照，限定該連線恢復內網 3389、系統 guacd 與既有核准 TOFU。
+  先前使用 ANY 的實際重試，guacd 明確回報 Authentication failure (invalid credentials?)。
+  已確認 guacd 首次信任儲存檔含目標主機條目，但未公開條目或憑證內容。
+  帳密只核對是否存在／佔位符／動態 token／首尾空白等布林結果；未輸出、更改或自動重試密碼。
+  已請使用者提供成功 Windows 工作階段的 whoami 結果，以確認實際帳號／網域；登入原因與桌面仍待確認。
+  詳見 docs/RDP_CONNECTION_REPAIR.zh-TW.txt；152 項狀態保持一致，不將診斷標為完整桌面通過。
+
+2026-11-01｜RDP 本機帳號範圍確認｜使用者提供成功 Windows 工作階段的 whoami 結果。
+  已確認為目標電腦的本機 administrator；實際電腦名稱不隨公開套件散布。
+  核對內網 3389／系統 guacd／any／核准 TOFU 仍正確，username 為 administrator，domain 原未設定。
+  私有非機密快照後，採條件交易只補 domain 為使用者確認的電腦名稱；讀回一致，其他參數保持不變。
+  未讀取或修改密碼，未自動重試 Windows 帳密，未重啟服務；已請使用者重新整理後重連。
+  帳密驗證及實際桌面仍待確認；本次只消除帳號範圍歧義，不宣稱已排除所有登入原因。
+  詳見 docs/RDP_CONNECTION_REPAIR.zh-TW.txt；152 項狀態保持一致。
+
+2026-11-01｜指定 RDP 使用者端確認成功｜使用者在本機帳號範圍補齊後回覆「可以了」。
+  指定連線的使用者端連線驗收記為成功；代理未直接查看桌面，未擴充為全部 RDP 功能或其他協定通過。
+  確定直接錯誤為 guacd port=0、Guacamole 來源連原外部 RDP 端點逾時。
+  已一併配置 any、核准 TOFU 及本機帳號範圍；未做逐一還原對照，不將所有調整都判為獨立必要條件。
+  未推定原密碼錯誤；既有帳密由代理保留。詳細時間線見 docs/RDP_CONNECTION_REPAIR.zh-TW.txt。
+  保留 152 項 PAM 狀態統計，不因一筆實際 RDP 成功而提升安全關卡或完整協定矩陣的狀態。
+
+2026-11-01｜依使用者要求準備 Git 發佈｜目標為使用者新建的 rutp6vmp/guacamole-theme-manager。
+  使用者明定不推實際設定；實際 Compose／.env、帳密、資料庫、錄影、備份、root 狀態均不納入。
+  擴充 .gitignore，將翻譯報告中的實際部署網址改為不含端點的描述；原紀錄備份保存在專案外。
+  新增 docs/GIT_PUBLICATION.zh-TW.txt，區分程式必要 manifest／合成測試與實際部署設定。
+  僅準備程式來源、通用文件與合成測試；完整系統部署與核心繁中仍維持既有缺口。
+  本事件僅記錄發佈準備，不將尚未完成的遠端上傳標為成功；152 項功能狀態保持一致。
+
+五、單次人工驗收紀錄（範本，填寫前不算通過）
+驗收項目 ID：
+版本／artifact SHA-256：
+測試日期／時區：
+執行人／環境（合成或真實）：
+前置條件：
+操作／命令：
+預期結果：
+實際結果：
+證據位置（不得含帳密、seed、token、錄影秘密）：
+通過／不通過／待複驗：
+限制與剩餘風險：
+複驗日期／處理紀錄：
+人工驗收人／正式上線核准人：

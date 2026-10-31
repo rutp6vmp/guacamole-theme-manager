@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "librenms",
+  "name": "LibreNMS Style",
+  "version": "1.1.0",
+  "author": "GuacTheme Manager contributors",
+  "guacamoleVersions": [
+    "1.6.0"
+  ],
+  "description": "A network operations inspired Guacamole dashboard. Original implementation; no LibreNMS code or assets.",
+  "entry": "guacamole-librenms.jar"
+}

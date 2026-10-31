@@ -1,0 +1,126 @@
+PAM 首批實作：部署保護與 TOTP 隔離驗證
+版本：CLI 1.2.0；主題 1.1.0；Apache Guacamole 1.6.0；單節點 Docker Compose v2。
+日期：2026-10-30，Asia/Taipei。
+需求對應：P00 / G04，P01 / F03 的前置驗證，G03 的部分原生權限驗證。
+
+一、這批實作的範圍
+
+新增 guac-theme protect-deployment，將「已經運行」的完整 Compose 清單與安全要求
+原子寫入既有 state/config.json。所有主題操作直接使用這份共同部署清單及既有 .lock。
+不另存一套安全工具專用 Compose 清單。未來安全安裝器必須沿用同一設定與鎖。
+
+命令不會啟用 MFA、不會寫入 Compose、不會重建容器、不會修改資料庫或擴充 JAR。
+它先確認實際 Web 的 Compose labels、映像、掛載、必要安全環境變數與載入紀錄，
+驗證成功才採納新設定；允許在主題仍啟用時採納既有的安全 overlay。
+採納前的 config.json 以 0600 備份在 state/deployment-backups/；不能盲目還原
+舊設定來解除新安全要求，備份供受控遷移與人工診斷使用。
+
+CLI 1.2.0 的一般 preflight 也會比對實際 Web 的完整 Compose 檔案順序。
+因此即使尚未建立 guard，主題工具漏載正在使用的 overlay 時，也會先拒絕變更。
+
+已保護的要求只能透過此命令增加，不能刪減：
+  --require-feature totp       要求設定及實際環境 TOTP_ENABLED=true，且官方 TOTP 已載入。
+  --require-feature recording  要求 RECORDING_ENABLED=true，且官方錄影儲存擴充已載入。
+  --protect-extension NAME.jar 固定一個既有非主題 JAR 的 SHA-256；不接受路徑或主題 JAR。
+
+每次 switch / install / reset / restore / recover 都遵循同一份部署清單。
+重建前再次檢查設定與安全要求，重建後驗證必要官方擴充載入。
+主題 restore 只還原視覺檔案及主題狀態，不回復過去的 Compose 或安全要求。
+受保護時 configure 不能清掉要求，即使目前已 reset 成原生主題。
+
+二、可重現的隔離驗證
+
+先在原始碼根目錄建置：
+  python3 scripts/build.py
+  python3 -m unittest discover -s tests -p 'test_*.py'
+
+具 Docker 操作權的使用者執行：
+  python3 tests/pam_acceptance.py
+
+腳本只建立隨機名稱 gtm-pam-test-* 的新專案、隨機 localhost port、tmpfs PostgreSQL、
+合成帳號及隨機測試密碼。密碼不經 CLI 參數傳遞；Compose 位於 mode 0700 暫存目錄，
+含測試密碼的檔案為 0600。Docker 輸出、HTTP response、OTP seed 和 token 不公開。
+使用官方 guacamole/guacamole:1.6.0、guacamole/guacd:1.6.0、postgres:16 映像。
+第一次執行若本機沒有這些映像，Docker 需要網路下載。
+
+驗證流程包含：
+1. 真實 JDBC 認證與官方 TOTP 綁定，拒絕只輸入密碼、錯碼及同一節點當下的 OTP 重放。
+2. 綁定後不再透露 seed；使用者 API 對本人與管理員都不回傳原始 seed。
+3. 讀取者不能自己停用 MFA，不能透過原生 API 讀取目標參數、未授權資產或另一人資料。
+4. 另一位管理員清除測試帳號綁定，舊 key 失效，新 key 可重新完成綁定。
+5. 真實漏載 overlay 的 reset 被拒絕，且主題檔未變；採納完整清單後可正常切換。
+6. 切 Dark、reset、restore 都保留 TOTP 要求與已確認綁定，官方錄影儲存模組仍載入。
+7. 將 overlay 的 TOTP_ENABLED 改為 false，主題操作先拒絕，Web 容器不重建。
+8. db、guacd 容器 ID 維持原值；結束只刪除自己產生的測試專案與暫存資料。
+
+此測試不使用正式環境的帳號、資料庫、連線或檔案，也不驗證使用者的手機。
+故意的錯碼／重放測試只對讀取者集中執行，避免跨帳號的累計錯誤觸發預設 IP ban；
+保留官方預設防暴力登入模組與門檻，不為通過測試停用封鎖或提高正式門檻。
+若測試被 SIGKILL 或主機斷電中止，可能留下自己的 gtm-pam-test-* fixture；
+只能以該次隨機專案的確切 Compose 路徑清理，不可對正式環境 down 或刪除 volume。
+
+三、未來內部試點的採納步驟
+
+目前使用者沒有提供 HTTPS／網域，先保持 localhost 隔離驗證。
+正式帳號的 seed 由帳號持有者掃描並保管；自動測試只代管一次性合成帳號。
+本輪沒有啟用正式 MFA、錄影或對外入口。
+
+未來啟用前須準備 HTTPS／可信反向代理、正確時間、資料庫與 MFA 設定備份、
+另一位可復原的管理員及獨立主機管理通道，並選定可中斷 Web 的維護時間。
+先在隔離副本驗證身份來源確實支援 TOTP 儲存，不能推定所有 SSO／LDAP 組合都可用。
+
+由後續安全部署工作包先建立及套用經審查的完整 Compose 組合；重建只限 Web。
+套用後使用同一份清單執行以下命令，PATH 與服務名稱由 configure 的既有設定決定：
+
+  guac-theme --state-dir /path/to/private-state protect-deployment \
+    --compose-file /path/to/compose.yaml \
+    --compose-file /path/to/security-overlay.yaml \
+    --require-feature totp
+
+以上全為待替換的範例路徑，不能直接套到正式環境。
+若安全設定已在單一主檔，不需 --compose-file，命令沿用目前清單。
+若同時要求已啟用的錄影儲存擴充，可再加 --require-feature recording。
+若手動安裝獨立安全 JAR，另加 --protect-extension 對應檔名。
+現階段沒有自動安裝自訂安全 JAR 的功能；主題 ZIP 驗證依舊拒絕 Java/authProviders。
+
+四、失敗與復原
+
+protect-deployment 失敗：原 config.json 不變，不會重建 Web。先修正檔案順序、
+目前運行的設定或必要模組；不能用移除安全要求來讓主題操作通過。
+
+主題操作驗證失敗：既有交易機制還原前一個主題，仍使用目前受保護的完整 Compose。
+若安全設定也失效，可能只還原檔案並保留 pending，不能把未驗證的 Web 報成成功。
+修正必要環境變數／受保護 JAR／Compose 清單後，再依既有手冊執行 recover。
+
+個別人員遺失 MFA 裝置：另一位有權限的管理員在原生使用者設定清除該帳號的 TOTP
+綁定，讓該人重新註冊；不啟用永久豁免。此流程已用合成帳號測試，正式手機由本人處理。
+受控緊急復原若真的需要暫停 MFA，先封鎖外部入口並使用獨立主機管理通道，
+由負責人備份、記錄原因並執行專用復原程序；完成後恢復 MFA、重新驗證再開放入口。
+目前 CLI 刻意沒有 unlock 或 disable-security 命令；不能把主題 reset 當作安全復原。
+受保護 JAR 升級／guard 移除需要後續專用程序，這版不提供原地改 hash 的捷徑。
+
+五、限制與後續順序
+
+這是本機操作工具的保護，不能阻止 root 手動改 config、刪檔、使用另一份 state 或直接
+執行 docker compose。後續 0.4.0 已有獨立 bootstrap/localhost entry 試驗，詳見
+PAM_INGRESS_PROBE.zh-TW.txt；正式外包入口、組織隔離、approval / grant gate 仍未完成。
+模組載入紀錄與環境變數檢查不是所有帳號都被強制 MFA 的證明；Guacamole 1.6.0 的
+管理員仍能設定個人／群組豁免，其他 bypass／地址條件也要在正式政策導入前檢查。
+
+錄影部分只驗證官方 storage 擴充的載入及主題操作後仍載入，沒有真實 SSH/RDP/VNC
+工作階段、錄影產生、容量耗盡、歷史隔離或回放授權證據；不能說已完成工作階段錄影。
+受保護 JAR 的 hash 只是檔案完整性檢查，不證明任意自訂 provider 已載入或有強制效果。
+OTP 重放測試限於同一運行中的節點，不承諾跨重啟或多節點共用防重放狀態。
+
+下一步依原規劃先做 G01 身份綁定／所有連線路徑 gate 的最小 Java extension POC，
+再做 G02 真實 tunnel 撤銷／期限；同步補 G03 歷史與錄影權限、P01 真實錄影與回放。
+未通過這些關卡，不開放外包正式存取、不宣稱完整 PAM，也不先堆沒有後端的功能頁。
+
+官方參考（均為 1.6.0）：
+https://guacamole.apache.org/doc/1.6.0/gug/totp-auth.html
+https://guacamole.apache.org/doc/1.6.0/gug/recording-playback.html
+https://guacamole.apache.org/doc/1.6.0/gug/auth-ban.html
+原始碼 tag 1.6.0，commit 0537c89cd783681b986ff8f8c4e0b97ec6873371：
+extensions/guacamole-auth-totp/src/main/java/org/apache/guacamole/auth/totp/user/UserVerificationService.java
+extensions/guacamole-auth-totp/src/main/java/org/apache/guacamole/auth/totp/user/TOTPUser.java
+guacamole/src/main/java/org/apache/guacamole/rest/auth/AuthenticationService.java

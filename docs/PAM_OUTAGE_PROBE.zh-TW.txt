@@ -1,0 +1,121 @@
+PAM 原生依賴失聯與恢復驗證
+處理日期：2026-10-31（Asia/Taipei）
+範圍：Guacamole 1.6.0、session probe 0.3.0；單 Web/JDBC/SSH 隔離原型。
+目前來源已續作 0.4.0，獨立入口見 PAM_INGRESS_PROBE.zh-TW.txt；下列舊版實測保留供追溯。
+對應：G02-02、F07-04、F08-03、X22-03、P00、F/K/L。
+本輪接續 PAM_RESTART_PROBE.zh-TW.txt，不變更原規劃或正式部署。
+
+一、故障矩陣與原創測試方向
+
+1. PostgreSQL process pause：保留該容器、記憶體及原 tmpfs 資料，停止其處理能力。
+   與停止／重建 tmpfs DB 不同，不藉由重建合成帳號冒充資料庫恢復。
+   先建立真實 SSH、租約與短期 intent，再 pause 該 fixture 的 DB。
+   檢查資格尚未到期時，原生權限依賴失聯仍無法建立新 tunnel；發新資格也不能成功。
+   已連 SSH 可短暫執行指令，但本地硬期限不因 DB 無回應而自動延長。
+   恢復 DB 後檢查終止確認、原生資產讀取、新登入與新連線。
+
+2. guacd process SIGKILL：DB、Web 與 SSH 目標仍在運行；實際終止閘道連線程序。
+   檢查既有瀏覽器 tunnel 斷線與租約狀態、原生資產 READ 仍成功、新 connect 失敗。
+   同一 intent 同時建立兩個請求，必須在 TTL 未到前就有一個被明確拒絕；另一個因
+   native guacd 不可用而失敗，不能等到資格過期才把拒絕算成一次消耗證據。
+   恢復同一 guacd 容器後，舊 lease 不復活，只有 fresh intent 可重新執行真實 SSH。
+
+測試不是正式 grant、政策服務、IdP、PAM worker、兩節點或完整網路分割矩陣。
+沒有不存在的服務可以用假的成功回應宣稱已驗證；這些項目仍保留為缺口。
+原型的 intent 上限也不代表正式 session 容量，沒有以本測試宣稱配額釋放完成。
+
+二、timeout 前提與後端生命週期
+
+官方 PostgreSQLGuacamoleProperties / PostgreSQLEnvironment 支援：
+postgresql-socket-timeout 與 postgresql-default-statement-timeout。
+官方 image 啟用 enable-environment-properties，可透過對應的環境變數提供。
+本 fixture 明確設定 POSTGRESQL_SOCKET_TIMEOUT=1 及
+POSTGRESQL_DEFAULT_STATEMENT_TIMEOUT=1，單位秒；不是整個 HTTP 請求的總耗時上限。
+socket timeout 的官方預設是 0（無 timeout），不能把本 fixture 的有界結果套用到未設定環境。
+statement timeout 與 socket timeout 用途不同；process pause 測試必須處理 socket 等待。
+Guacamole 1.6.0 InetGuacamoleSocket 的原生 connect/read socket timeout 為 15000ms；
+這與 PostgreSQL timeout、intent TTL 都不同。測試允許底層錯誤返回，並另外在 TTL 內
+檢查重放拒絕；不靠延長資格有效期來讓測試通過。
+
+probe 在 issue 以及真正 connect 前查詢 native ConnectionDirectory，沒有在 DB 故障時
+轉而相信已快取的前端身份或可見資產。Guacamole 原生底層錯誤可能回 HTTP 500 或
+protocol SERVER_ERROR；拒絕連線與提供友善產品錯誤訊息是兩件不同工作。
+原型仍需接正式的依賴 health、readiness 及不洩漏資訊的錯誤模型。
+
+本地 lease timer 與政策檔監看分開；但 native tunnel.close() 也會觸發 JDBC history cleanup。
+故障時不能只看瀏覽器斷線就宣稱完整稽核寫入已成功，需分別核對 termination confirmation
+與原生歷史結果；正式稽核對帳、outbox／重試尚待實作。
+
+三、測試歸屬與可攜性
+
+tests/outage_acceptance.py 只由 tests/session_acceptance.py --suite outage 呼叫，
+沿用隨機 gtm-pam-test-<12 hex> project、localhost 埠、合成帳密、獨立 SSH 及 tmpfs DB。
+每次 lifecycle 操作先取得該 project/service 的唯一容器，再核對 Docker Compose 的
+project/service labels 與完整 container ID；拒絕正式名稱、錯 project、錯 service 與不合法 ID。
+允許的操作僅 DB pause/unpause、guacd SIGKILL/start，不操作 Web／SSH 或正式設備。
+finally 先解除自己造成的 DB pause，外層 fixture 再 down；不做全域 Docker prune。
+tests/test_outage_fixture_guard.py 以 6 項檢查驗證拒絕錯選目標，不需要 Docker。
+
+執行方式：
+  python3 scripts/build_pam_probe.py --probe session --war /path/to/guacamole-1.6.0.war
+  python3 tests/session_acceptance.py --suite outage \
+    --probe-jar dist/poc-session/guacamole-pam-session-probe-0.4.0.jar
+
+需要 Docker、Node、Playwright；同其他 session suites 可指定 GTM_PLAYWRIGHT_MODULE。
+預設建立及清理自有 SSH image；也可使用有 fixture label 且無預建 host key 的測試 image。
+報告僅有檢查名稱、status/code、耗時、產物 hash 及測試 image metadata，不含原始回應、
+帳密、SQL 內容、login/tunnel token 或瀏覽器連線參數。
+手動 GitHub workflow 加入 outage suite；新增設定與來源都隨完整來源包攜帶，無主機固定路徑。
+
+四、實測結果
+
+2026-10-31：outage suite 32 項通過，使用原 0.3.0 JAR，後端來源與 binary 未改。
+本輪新增 fixture、目標歸屬檢查、workflow 與手冊，不是新增正式控制服務。
+
+單次本機觀測（非 SLA）：
+DB 暫停後，仍有效的 pending intent 連線返回 protocol SERVER_ERROR 512：4945ms。
+DB 暫停時 issue intent：HTTP 500，2022ms；沒有回可用的新資格。
+本地 deadline 終止確認超過排定期限：667ms。
+guacd SIGKILL 返回後至瀏覽器觀察斷線：225ms；此值不含 kill 命令本身耗時。
+guacd 不可用的 native connect 返回 protocol UPSTREAM_TIMEOUT 514：約 15099ms。
+同一資格的另一個並行請求在 TTL 內返回 CLIENT_FORBIDDEN 771；恢復後重放仍被拒。
+新資格在恢復的同一 guacd 容器可執行真正 SSH 指令，先前 lease 不被重建。
+Web／SSH 容器識別在故障期間維持原值，DB／guacd 亦未重建容器。
+
+前置試跑未通過的原因及修正：2 秒 DB timeout 時，仍有效資格的故障回應約 10004ms 才返回，
+與 10000ms intent TTL 重疊；fixture 改為 1 秒並先測 pending connect，保留未到期斷言。
+另一試跑在 native guacd 的 15 秒等待邊界提前結束；改用 TTL 內兩個同時請求驗證消耗，
+另等待底層錯誤返回，不擴大 intent TTL、不把過期拒絕冒充一次性消耗。
+修正後完整 32 項通過，沒有刪除這兩項檢查。
+
+JAR SHA-256：afa4a80ea6380ae127cce961f27de80d2d1f74a49cbe3b32e3d94de5b020b6b3。
+WAR SHA-256：b41ceb1e2df010b54db563e0b00edb8d5fe9f073c6168462e4c978df0fc6e716。
+SSH fixture：sha256:84849d965375ba34a74326a8a8bafc7c7162b80a814e6206f64759a84f615ec7。
+openssh-server 1:9.2p1-2+deb12u10；無預建 host key，runtime 生成。
+來源檢查 65 項 Python（原 59＋6 項目標歸屬防誤操作）、6 項前端模型與 JS 語法通過。
+原 session 57、sharing 53、restart 51 的前批結果保留；因後端/JAR 未改，本輪未重跑這三套。
+原 gate 21+5、TOTP 46 與既有 UI 亦未重跑，不能把歷史數字寫成本輪新結果。
+
+完整 1.2.0 ZIP 解壓後，65 項 Python 與 152 項 ledger 檢查通過。
+本輪所有新建 fixture 容器及自建 SSH image tag 已清理；現有 Guacamole localhost HTTP 200。
+未變更正式部署、帳號、登入方式或資料庫，未執行遠端 CI／Git 推送。
+
+五、後續實作方向
+
+1. 將正式政策／授權／身份狀態的不可用，對接權威依賴 health，而非依賴頁面判斷。
+2. 原生 DB 故障可能留下歷史收尾未落盤；產品需可重試、可對帳且不重複的稽核／session 更新。
+3. 實測 IdP/控制服務/worker 失聯與恢復，以及不同故障順序、延遲事件、共享父子與跨節點。
+4. owner lease/heartbeat/fencing、多協定及真實錄影仍需獨立驗收，不從單 Web 結果推論 HA。
+5. Guacamole tunnel 中斷不等於目標 OS 登出或背景程序終止；維持既有文件的控制語義。
+
+官方來源已在本機核對 tag 1.6.0，commit 0537c89cd783681b986ff8f8c4e0b97ec6873371：
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/src/main/java/
+  org/apache/guacamole/auth/postgresql/PostgreSQLAuthenticationProviderModule.java
+  org/apache/guacamole/auth/postgresql/conf/PostgreSQLEnvironment.java
+  org/apache/guacamole/auth/postgresql/conf/PostgreSQLGuacamoleProperties.java
+extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-base/src/main/java/
+  org/apache/guacamole/auth/jdbc/connection/ConnectionDirectory.java
+  org/apache/guacamole/auth/jdbc/tunnel/ManagedInetGuacamoleSocket.java
+  org/apache/guacamole/auth/jdbc/tunnel/AbstractGuacamoleTunnelService.java
+guacamole-docker/entrypoint.d/100-generate-guacamole-home.sh
+guacamole-common/src/main/java/org/apache/guacamole/net/InetGuacamoleSocket.java

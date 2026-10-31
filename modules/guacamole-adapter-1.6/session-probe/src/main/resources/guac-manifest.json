@@ -1,0 +1,6 @@
+{
+  "guacamoleVersion": "1.6.0",
+  "name": "PAM Session Probe (ISOLATED FIXTURE ONLY)",
+  "namespace": "pam-session-probe",
+  "authProviders": ["org.guactheme.pam.sessionprobe.SessionProbeProvider"]
+}
