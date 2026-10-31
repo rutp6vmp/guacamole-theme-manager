@@ -29,3 +29,15 @@
   執行 scripts/test.sh、152 項 ledger 檢查及產物 SHA256SUMS 核對。
   目前本地修改與公開來源均不包含正式服務的 .env、資料庫或管理狀態。
   .gitignore 只負責未追蹤檔案；未來若誤加入敏感檔案，須先停止發佈再處理，不能只補 ignore。
+
+首次來源上傳紀錄（2026-11-01／Asia/Taipei）
+  已透過使用者連結的 GitHub 帳號上傳 99 個來源檔案至 main。
+  來源提交：fcdeb7094ed1ab60ba39e37c39a389b555999d25。
+  來源樹：054ddb3dacea82b6105b07749fedd5675b27d96f。
+  上傳後從 GitHub 取回，確認遠端樹與逐檔核對的本機索引完全一致。
+  實際設定路徑的 12 項 ignore 檢查通過；實際端點／憑證與 token 格式檢查未發現違規。
+  來源 72 項 Python、6 項 Node 模型、JS 語法及 152 項 ledger 檢查通過。
+  上述來源提交的 GitHub CI 已通過：
+  https://github.com/rutp6vmp/guacamole-theme-manager/actions/runs/41229857229
+  本紀錄不代表已發布 Release。
+  本機 main 已設定追蹤 origin/main；正式服務未因 Git 上傳重啟或變更。
