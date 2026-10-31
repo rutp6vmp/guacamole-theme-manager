@@ -1,5 +1,7 @@
 # 安裝、切換及故障還原
 
+完整原生安裝順序另見 [Guacamole 完整安裝頁面](GUACAMOLE_INSTALL.zh-TW.md)：依序完成 VM、Docker、資料庫、Web、首次登入與 RDP／SSH，再安裝可選主題。
+
 新 VM 尚未有 Guacamole 時，請先依 [新 VM 從零安裝教學](NEW_VM_INSTALL.zh-TW.txt) 建立 Docker、Guacamole 與資料庫。以下步驟用於已存在的部署；從 Git 下載後先執行 `python3 scripts/build.py`，才會有下方使用的主題 ZIP。
 
 ## 設定部署位置

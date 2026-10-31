@@ -1577,7 +1577,7 @@ PAM 規劃驗收與進度管理表
 最後處理日期：2026-11-01
 最近驗證日期：2026-11-01
 範圍內完成日期：—
-證據：docs/NEW_VM_INSTALL.zh-TW.txt; docs/GIT_PUBLICATION.zh-TW.txt; scripts/build.py; .github/workflows/ci.yml; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
+證據：docs/GUACAMOLE_INSTALL.zh-TW.md; docs/NEW_VM_INSTALL.zh-TW.txt; docs/GIT_PUBLICATION.zh-TW.txt; scripts/build.py; .github/workflows/ci.yml; docs/PAM_OUTAGE_PROBE.zh-TW.txt; tests/outage_acceptance.py; docs/PAM_INGRESS_PROBE.zh-TW.txt; tests/ingress_acceptance.py
 缺口／下一步：已推 Git 來源與新 VM 分步教學，教學 Docker 段隔離通過；Ubuntu apt 安裝未在新 VM 實跑，完整核心繁中／正式 PAM 發行／簽章／設定遷移仍未交付
 
 [D01]
@@ -1905,6 +1905,14 @@ PAM 規劃驗收與進度管理表
   測試中 DB／guacd 身分、私有 .env／語系 JAR 保留，結束只清理自建專案與 Volume，正式服務未變更。
   Ubuntu apt／systemd 安裝僅官方文件核對與語法檢查，未冒稱已在全新 OS VM 實跑。
   L 維持部分通過並更新日期／證據，152 項狀態統計不變；本批交付分步教學，不宣稱一鍵完整 PAM 部署。
+
+2026-11-01｜依使用者要求新增 Guacamole 完整安裝獨立頁｜新增 docs/GUACAMOLE_INSTALL.zh-TW.md。
+  GitHub Markdown 頁提供 10 步目錄、三服務用途、逐步完成條件、原生初始化／登入／RDP／SSH、
+  可選主題／中文補充、正式入口與備份／錄影／MFA 的後續順序，以及常見錯誤對照。
+  README 中英文、既有安裝文件及 TXT 版加入入口；不啟用 GitHub Pages 或另建網站服務。
+  13 個 Bash 區塊、內嵌 Python、目錄錨點與相對連結通過檢查；Compose 與 Python 和前批已驗範本一致。
+  本輪僅文件變更，不重跑或冒稱全新 OS 安裝；沿用前批隔離 Docker 證據，Ubuntu apt／systemd 仍待新 VM 實跑。
+  未帶入實際設定、帳密、資料庫或內網端點，不變更正式服務；L 維持部分通過，152 項統計不變。
 
 五、單次人工驗收紀錄（範本，填寫前不算通過）
 驗收項目 ID：

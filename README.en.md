@@ -6,6 +6,8 @@ Installable dashboard themes and a safe CLI for **Apache Guacamole 1.6.0**. Uses
 
 ## Start here
 
+Read the [standalone Guacamole installation sequence (Traditional Chinese)](docs/GUACAMOLE_INSTALL.zh-TW.md) for the core service setup, first login, remote connection checks and optional theme installation.
+
 For a fresh Ubuntu VM, follow the [step-by-step Docker Compose guide (Traditional Chinese)](docs/NEW_VM_INSTALL.zh-TW.txt): install Docker, initialize a new Guacamole 1.6.0/PostgreSQL deployment, build the themes and enable the CLI. The existing `install.sh` installs only the theme manager.
 
 For an existing Guacamole 1.6.0 deployment:

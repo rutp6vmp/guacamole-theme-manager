@@ -3,6 +3,8 @@
 適用：全新的 Ubuntu 22.04／24.04 VM、Bash、可使用 sudo、可連網下載套件及 Docker 映像。
 版本：Guacamole 1.6.0、PostgreSQL 16、主題 1.1.0、CLI 1.2.0。
 
+GitHub 可直接閱讀的獨立安裝順序頁：docs/GUACAMOLE_INSTALL.zh-TW.md。
+
 這是分步驟教學，沒有宣稱現有 install.sh 能一鍵部署整套 Guacamole。
 實際密碼與 Compose 都在新 VM 產生，不包含原系統帳號、設備、內網位址或其他設定。
 以下命令用於新 VM；已有 Guacamole 的主機請改依 docs/INSTALL.md 操作。

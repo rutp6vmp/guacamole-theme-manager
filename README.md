@@ -6,6 +6,8 @@
 
 ## 快速開始：新 VM 安裝
 
+**[Guacamole 完整安裝順序（獨立閱讀頁面）](docs/GUACAMOLE_INSTALL.zh-TW.md)**：先安裝原生 Guacamole、登入及測試 RDP／SSH，再選擇安裝主題、中文補充與後續功能。
+
 **第一次安裝請照 [新 VM 分步驟教學（Ubuntu／Docker Compose）](docs/NEW_VM_INSTALL.zh-TW.txt)**，依序完成 Docker、Guacamole 1.6.0／PostgreSQL、新 VM 專用密碼、中文補充、主題與首次登入。這是完整步驟教學，現有 `install.sh` 只安裝管理工具。
 
 已經有可運作的 Guacamole 1.6.0 時，可先下載並準備這個專案：
